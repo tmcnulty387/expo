@@ -1,4 +1,4 @@
-## EXPO
+# EXPO
 
 ## Project Goal:
 Create a native, distributed digital whiteboard application.
@@ -11,16 +11,20 @@ Create a native, distributed digital whiteboard application.
 - Wireframe design
 
 ## Intended Components:
-TODO: stub out functions & data structures
+- Gio UI
+- Standard Go TCP/IP stack
+- 
+TODO: stub out key functions & key data structures
 
 ## Testing Goals:
-It works :) Tested using automated unit tests.
+Primary goal: It works :)
+- Tested using automated unit tests
 - Network failures handled (resiliency)
 - Security, authentication
 - Latency
 
 ## MVP:
-- Bitmap image data communicated in real time between 2 clients.
+- Bitmap image data communicated in real time between 2 clients
 - Pixel-based drawing tools only, implemented using bitmap
 
 ## Stretch Goals:
