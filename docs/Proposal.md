@@ -1,5 +1,5 @@
 # EXPO
-*Team Members: Sebastian LaVine, Jane Majewski, Tim McNulty, Rina Peshori*
+*__Team Members:__ Sebastian LaVine, Jane Majewski, Tim McNulty, Rina Peshori*
 
 ## Project Goal:
 Create a native, distributed digital whiteboard application.
@@ -29,8 +29,6 @@ Create a native, distributed digital whiteboard application.
   - Contains pixel point data (with features such as color value)
 - Encryption schema
   - Possibly implemented via HTTPs
-
-TODO: stub out key functions & key data structures
 
 ## Testing Goals:
 Primary goal: It works :)
