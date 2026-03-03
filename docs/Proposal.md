@@ -54,3 +54,4 @@ We expect to have all basic functionality as detailed in the MVP section complet
 
 ## Research/Notes
 - golibp2p: library for P2P networking in Go
+- goupnp: for non-P2P networking (can handle port forwarding)
