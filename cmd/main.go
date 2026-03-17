@@ -18,20 +18,20 @@ import (
 )
 
 var (
-	Red     = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
-	Green   = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
-	Blue    = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
-	Yellow  = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
-	Cyan    = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
-	Magenta = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
-	Black   = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
-	White   = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	Gray    = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
-	Orange  = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
-	tag     = new(int)
-	drawing = false
-	current []f32.Point //
-	strokes [][]f32.Point
+	Red        = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
+	Green      = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
+	Blue       = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
+	Yellow     = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
+	Cyan       = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
+	Magenta    = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
+	Black      = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
+	White      = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	Gray       = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
+	Orange     = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
+	tag        = new(int)
+	drawing    = false
+	strokes    [][]f32.Point
+	needRedraw = false
 )
 
 func main() {
@@ -83,47 +83,35 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			case pointer.Press:
 				drawing = true
 				log.Println("Started Drawing")
-				current = append(current, e.Position)
+				strokes = append(strokes, []f32.Point{e.Position})
+				needRedraw = true
 			case pointer.Drag:
 				if drawing {
-					current = append(current, e.Position)
+					strokes[len(strokes)-1] = append(strokes[len(strokes)-1], e.Position)
+					needRedraw = true
 				}
 			case pointer.Release:
 				if drawing {
-					current = append(current, e.Position)
-					stroke := make([]f32.Point, len(current))
-					copy(stroke, current)
-					strokes = append(strokes, stroke)
-					current = current[:0]
+					strokes[len(strokes)-1] = append(strokes[len(strokes)-1], e.Position)
 					drawing = false
 					log.Println("Stopped Drawing")
+					needRedraw = true
 				}
 			case pointer.Cancel:
 				if drawing {
-					stroke := make([]f32.Point, len(current))
-					copy(stroke, current)
-					strokes = append(strokes, stroke)
-					current = current[:0]
+					if len(strokes[len(strokes)-1]) == 1 {
+						strokes = strokes[:len(strokes)-1]
+					}
 					drawing = false
 					log.Println("Cancelled Drawing")
+					needRedraw = true
 				}
 			}
 			log.Println("Event: ", e)
 		}
 	}
-	if drawing {
-		var path clip.Path
-		path.Begin(ops)
-
-		path.MoveTo(current[0])
-		for _, p := range current[1:] {
-			path.LineTo(p)
-		}
-		paint.FillShape(ops, Black,
-			clip.Stroke{
-				Path:  path.End(),
-				Width: 4,
-			}.Op())
+	if !needRedraw {
+		return
 	}
 	for _, stroke := range strokes {
 		var path clip.Path
@@ -139,4 +127,5 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				Width: 4,
 			}.Op())
 	}
+	needRedraw = false
 }
