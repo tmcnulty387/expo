@@ -6,3 +6,11 @@ Made as part of CSCI 541 - Concurrent and Systems Programming in Go at RIT, Spri
 `Please see docs/Proposal.md for the detailed Project Proposal.`
 
 *__Team Members:__ Sebastian LaVine, Jane Majewski, Tim McNulty, Rina Peshori*
+
+
+## Build Instructions
+
+Live reload with Air:
+```bash
+air --build.cmd "go build -o ./tmp/main ./cmd" --build.entrypoint "./tmp/main"
+```
