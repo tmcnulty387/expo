@@ -49,6 +49,12 @@ func main() {
 	}
 	defer c.Close()
 
+	log.Println("Launching Expo client app")
+	go startApp()
+
+	// TODO: Remove/integrate into messages to be passed between main expo app?
+	log.Println("Launching example websocket client echo code")
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -94,7 +100,4 @@ func main() {
 			return
 		}
 	}
-
-	// TODO: integrate with starting drawing application
-	startApp()
 }
