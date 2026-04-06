@@ -6,6 +6,6 @@
   bin = "./tmp/main"
   full_bin = "./tmp/main"
   include_ext = ["go"]
-  exclude_dir = ["tmp", ".git"]
+  exclude_dir = ["tmp", ".git", "gio-example"]
   exclude_file = []
   delay = 1000
