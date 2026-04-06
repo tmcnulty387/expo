@@ -25,7 +25,7 @@ Expo server.
 To build and run the client:
 
 ```shell-session
-$ go run ./client 
+$ go run ./client $hostname:56469
 ```
 
 To build and run the server:
