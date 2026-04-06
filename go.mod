@@ -1,8 +1,11 @@
-module github.com/Go-20255/team-project-malloc4.git
+module github.com/Go-20255/team-project-malloc4
 
 go 1.25.0
 
-require gioui.org v0.9.0
+require (
+	gioui.org v0.9.0
+	github.com/gorilla/websocket v1.5.3
+)
 
 require (
 	gioui.org/shader v1.0.8 // indirect
