@@ -1,0 +1,11 @@
+# Air live-reload configuration for this Go project.
+# Run with: air
+
+[build]
+  cmd = "go build -o ./tmp/main ./cmd"
+  bin = "./tmp/main"
+  full_bin = "./tmp/main"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", ".git"]
+  exclude_file = []
+  delay = 1000
