@@ -19,9 +19,26 @@ A native, distributed digital whiteboard application.
 
 ## Build Instructions
 
+This repository contains two separate programs: the Expo client, and the
+Expo server.
+
+To build and run the client:
+
+```shell-session
+$ go run ./client 
+```
+
+To build and run the server:
+
+```shell-session
+$ go run ./server 
+```
+
+
 Live reload with Air:
-```bash
-air --build.cmd "go build -o ./tmp/main ./cmd" --build.entrypoint "./tmp/main"
+```shell-session
+$ air --build.cmd "go build -o ./tmp/expo-server ./server" \
+    --build.entrypoint "./tmp/expo-server"
 ```
 =======
 ## Testing Goals:
