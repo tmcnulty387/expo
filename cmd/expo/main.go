@@ -11,7 +11,7 @@ import (
 
 	"gioui.org/app"
 
-	"github.com/Go-20255/team-project-malloc4.git/internal/ui"
+	"github.com/Go-20255/team-project-malloc4/internal/ui"
 )
 
 // TODO: Separate out into internal/networking? Replace with CLI function?

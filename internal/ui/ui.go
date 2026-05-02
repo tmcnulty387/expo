@@ -41,11 +41,7 @@ var (
 	strokes     [][]f32.Point
 )
 
-<<<<<<<< HEAD:client/drawing.go
-func loop(window *app.Window) error {
-========
 func Loop(ctx context.Context, window *app.Window) error {
->>>>>>>> networking-tls-wip:internal/ui/ui.go
 	var toggleSessionBtn widget.Clickable
 	var sessionCodeInput widget.Editor
 	sessionCodeInput.SingleLine = true
@@ -208,54 +204,3 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			}.Op())
 	}
 }
-<<<<<<<< HEAD:client/drawing.go
-
-func sessionFooter(gtx layout.Context, th *material.Theme, code string) layout.Dimensions {
-	if code == "" {
-		return layout.Dimensions{}
-	}
-
-	height := gtx.Dp(unit.Dp(40))
-
-	return layout.Stack{}.Layout(gtx,
-		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.Y = height
-			gtx.Constraints.Max.Y = height
-
-			// light footer background
-			paint.FillShape(gtx.Ops, color.NRGBA{R: 245, G: 245, B: 245, A: 255},
-				clip.Rect{Max: gtx.Constraints.Min}.Op())
-
-			return layout.Dimensions{Size: gtx.Constraints.Min}
-		}),
-		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.Y = height
-			gtx.Constraints.Max.Y = height
-
-			return layout.Inset{
-				Left:   unit.Dp(12),
-				Right:  unit.Dp(12),
-				Top:    unit.Dp(10),
-				Bottom: unit.Dp(10),
-			}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Body1(th, "Session Code: "+code)
-				lbl.Color = color.NRGBA{R: 30, G: 30, B: 30, A: 255}
-				return lbl.Layout(gtx)
-			})
-		}),
-	)
-}
-
-func startApp() {
-	go func() {
-		window := new(app.Window)
-		err := loop(window)
-		if err != nil {
-			log.Fatal(err)
-		}
-		os.Exit(0)
-	}()
-	app.Main()
-}
-========
->>>>>>>> networking-tls-wip:internal/ui/ui.go
