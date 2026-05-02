@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"gioui.org/app"
@@ -15,6 +18,8 @@ import (
 
 // TODO: Separate out into internal/networking? Replace with CLI function?
 func cli(ctx context.Context) error {
+	lines := make(chan string, 10)
+
 	// TODO: remove placeholder example connection attempt
 	conn, err := tls.Dial("tcp", "mail.google.com:443", nil)
 	if err != nil {
@@ -22,9 +27,29 @@ func cli(ctx context.Context) error {
 	}
 	log.Printf("connection: %s\n", conn.RemoteAddr())
 	defer conn.Close()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
+
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for {
+			fmt.Print("> ")
+			if !scanner.Scan() {
+				break
+			}
+			lines <- strings.TrimSpace(scanner.Text())
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case line := <-lines:
+			log.Println("input: ", line)
+			switch line {
+			case "quit":
+				return nil
+			}
+		}
 	}
 }
 
