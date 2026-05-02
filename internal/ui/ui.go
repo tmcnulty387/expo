@@ -23,6 +23,12 @@ import (
 	"gioui.org/widget/material"
 )
 
+// stroke represents a drawn line
+type stroke struct {
+	points []f32.Point
+	col    color.NRGBA
+}
+
 var (
 	Red         = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
 	Green       = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
@@ -38,7 +44,8 @@ var (
 	drawing     = false
 	inSession   = false
 	sessionCode string
-	strokes     [][]f32.Point
+	drawColor   = Black
+	strokes     []stroke
 )
 
 func Loop(ctx context.Context) error {
@@ -50,6 +57,10 @@ func Loop(ctx context.Context) error {
 	sessionCodeInput.Submit = true
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	// colour palette setup vars (needs to be persistent across frames)
+	colorChoices := []color.NRGBA{Black, Red, Green, Blue, Yellow, Cyan, Magenta, Orange}
+	var colorBtns = make([]widget.Clickable, len(colorChoices))
+
 	var ops op.Ops
 	for {
 		select {
@@ -134,6 +145,31 @@ func Loop(ctx context.Context) error {
 									})
 								})
 							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								// colour picker tool: label + colour swatches
+								return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									children := make([]layout.FlexChild, 0, len(colorChoices)+1)
+									children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										lbl := material.Body1(th, "Color:")
+										return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
+									}))
+									for i := range colorChoices {
+										ci := i
+										children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											btn := &colorBtns[ci]
+											for btn.Clicked(gtx) {
+												drawColor = colorChoices[ci]
+											}
+											return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												mbtn := material.Button(th, btn, "")
+												mbtn.Background = colorChoices[ci]
+												return mbtn.Layout(gtx)
+											})
+										}))
+									}
+									return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
+								})
+							}),
 						)
 					})
 				}),
@@ -168,20 +204,23 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			case pointer.Press:
 				drawing = true
 				log.Println("Started Drawing")
-				strokes = append(strokes, []f32.Point{e.Position})
+				// start new stroke with current drawing colour
+				strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor})
 			case pointer.Drag:
 				if drawing {
-					strokes[len(strokes)-1] = append(strokes[len(strokes)-1], e.Position)
+					s := &strokes[len(strokes)-1]
+					s.points = append(s.points, e.Position)
 				}
 			case pointer.Release:
 				if drawing {
-					strokes[len(strokes)-1] = append(strokes[len(strokes)-1], e.Position)
+					s := &strokes[len(strokes)-1]
+					s.points = append(s.points, e.Position)
 					drawing = false
 					log.Println("Stopped Drawing")
 				}
 			case pointer.Cancel:
 				if drawing {
-					if len(strokes[len(strokes)-1]) == 1 {
+					if len(strokes[len(strokes)-1].points) == 1 {
 						strokes = strokes[:len(strokes)-1]
 					}
 					drawing = false
@@ -191,15 +230,18 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			log.Println("Event: ", e)
 		}
 	}
-	for _, stroke := range strokes {
+	for _, s := range strokes {
+		if len(s.points) == 0 {
+			continue
+		}
 		var path clip.Path
 		path.Begin(ops)
 
-		path.MoveTo(stroke[0])
-		for _, p := range stroke[1:] {
+		path.MoveTo(s.points[0])
+		for _, p := range s.points[1:] {
 			path.LineTo(p)
 		}
-		paint.FillShape(ops, Black,
+		paint.FillShape(ops, s.col,
 			clip.Stroke{
 				Path:  path.End(),
 				Width: 4,
