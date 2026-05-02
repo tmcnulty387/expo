@@ -74,7 +74,7 @@ func run(headless bool) {
 	// Launch GUI loop.
 	//
 	if !headless {
-		tasks.Go(func() { quit <- ui.Loop(ctx, new(app.Window)) })
+		tasks.Go(func() { quit <- ui.Loop(ctx) })
 	}
 
 	//

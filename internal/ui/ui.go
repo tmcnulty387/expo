@@ -41,7 +41,9 @@ var (
 	strokes     [][]f32.Point
 )
 
-func Loop(ctx context.Context, window *app.Window) error {
+func Loop(ctx context.Context) error {
+	window := new(app.Window)
+
 	var toggleSessionBtn widget.Clickable
 	var sessionCodeInput widget.Editor
 	sessionCodeInput.SingleLine = true
