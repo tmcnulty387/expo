@@ -6,7 +6,7 @@ A native, distributed digital whiteboard application.
 
 `Please see docs/Proposal.md for the detailed Project Proposal.`
 
-*__Team Members:__ Sebastian LaVine, Jane Majewski, Tim McNulty, Rina Peshori*
+*__Team Members:__ Sebastian LaVine, Tim McNulty, Rina Peshori*
 =======
 ## Intended Components:
 - Gio UI
@@ -22,6 +22,11 @@ A native, distributed digital whiteboard application.
 This repository contains one program which implements the Expo GUI and
 networking protocol.
 
+Before building, please install Air for live reload capability:
+```shell-session
+$ go install github.com/air-verse/air@latest
+```
+
 To build and run:
 
 ```shell-session
@@ -36,7 +41,8 @@ $ air --build.cmd "go build -o ./tmp/expo ./cmd/expo" \
 ```
 =======
 ## Testing Goals:
-It works :) Tested using automated unit tests.
+It works :)
+Tested using automated unit tests.
 - Network failures handled (resiliency)
 - Security, authentication
 - Latency
