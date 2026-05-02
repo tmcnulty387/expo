@@ -10,7 +10,7 @@ A native, distributed digital whiteboard application.
 =======
 ## Intended Components:
 - Gio UI
-- Standard Go TCP/IP stack
+- Standard Go TCP/IP stack (TLS)
 
 ## MVP (checkpoint 1):
 - Bitmap image data communicated in real time between 2 clients.
@@ -19,26 +19,20 @@ A native, distributed digital whiteboard application.
 
 ## Build Instructions
 
-This repository contains two separate programs: the Expo client, and the
-Expo server.
+This repository contains one program which implements the Expo GUI and
+networking protocol.
 
-To build and run the client:
-
-```shell-session
-$ go run ./client $hostname:56469
-```
-
-To build and run the server:
+To build and run:
 
 ```shell-session
-$ go run ./server 
+$ go run ./cmd/expo
 ```
 
 
 Live reload with Air:
 ```shell-session
-$ air --build.cmd "go build -o ./tmp/expo-server ./server" \
-    --build.entrypoint "./tmp/expo-server"
+$ air --build.cmd "go build -o ./tmp/expo ./cmd/expo" \
+    --build.entrypoint "./tmp/expo"
 ```
 =======
 ## Testing Goals:

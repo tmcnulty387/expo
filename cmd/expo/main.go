@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"gioui.org/app"
 
@@ -26,10 +25,7 @@ func cli(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	// TODO: Remove placeholder network wait
-	case <-time.After(5 * time.Second):
 	}
-	return nil
 }
 
 // High-level client logic.
