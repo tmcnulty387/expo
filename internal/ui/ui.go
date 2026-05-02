@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"log"
@@ -40,7 +41,7 @@ var (
 	strokes     [][]f32.Point
 )
 
-func Loop(window *app.Window) error {
+func Loop(ctx context.Context, window *app.Window) error {
 	var toggleSessionBtn widget.Clickable
 	var sessionCodeInput widget.Editor
 	sessionCodeInput.SingleLine = true
@@ -49,6 +50,12 @@ func Loop(window *app.Window) error {
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	var ops op.Ops
 	for {
+		select {
+		case <-ctx.Done():
+			// TODO: Is any other shutdown logic required here?
+			return ctx.Err()
+		default:
+		}
 		switch e := window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
@@ -144,6 +151,8 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 
 	// Process events that arrived between the last frame and this one.
 	for {
+		// TODO: I think we block here -- do we need to propogate context to
+		// this function as well?
 		ev, ok := source.Event(pointer.Filter{
 			Target: tag,
 			Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
