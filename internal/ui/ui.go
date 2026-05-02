@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -27,7 +28,10 @@ import (
 type stroke struct {
 	points []f32.Point
 	col    color.NRGBA
+	width  float32
 }
+
+const appTitle = "EXPO"
 
 var (
 	Red         = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
@@ -44,12 +48,14 @@ var (
 	drawing     = false
 	inSession   = false
 	sessionCode string
-	drawColor   = Black
+	drawColor           = Black
+	strokeWidth float32 = 4
 	strokes     []stroke
 )
 
 func Loop(ctx context.Context) error {
 	window := new(app.Window)
+	window.Option(app.Title(appTitle))
 
 	var toggleSessionBtn widget.Clickable
 	var sessionCodeInput widget.Editor
@@ -60,6 +66,9 @@ func Loop(ctx context.Context) error {
 	// colour palette setup vars (needs to be persistent across frames)
 	colorChoices := []color.NRGBA{Black, Red, Green, Blue, Yellow, Cyan, Magenta, Orange}
 	var colorBtns = make([]widget.Clickable, len(colorChoices))
+	// buttons for decreasing or increasing stroke width
+	var decWidth widget.Clickable
+	var incWidth widget.Clickable
 
 	var ops op.Ops
 	for {
@@ -170,6 +179,39 @@ func Loop(ctx context.Context) error {
 									return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 								})
 							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								// stroke width controls: decrement, display, increment
+								return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											for decWidth.Clicked(gtx) {
+												if strokeWidth > 1 {
+													strokeWidth -= 1
+												}
+											}
+											btn := material.Button(th, &decWidth, "-")
+											btn.TextSize = unit.Sp(14)
+											return btn.Layout(gtx)
+										}),
+										layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											lbl := material.Body1(th, fmt.Sprintf("%.0f", float32(strokeWidth)))
+											return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
+										}),
+										layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											for incWidth.Clicked(gtx) {
+												if strokeWidth < 64 {
+													strokeWidth += 1
+												}
+											}
+											btn := material.Button(th, &incWidth, "+")
+											btn.TextSize = unit.Sp(14)
+											return btn.Layout(gtx)
+										}),
+									)
+								})
+							}),
 						)
 					})
 				}),
@@ -204,8 +246,8 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			case pointer.Press:
 				drawing = true
 				log.Println("Started Drawing")
-				// start new stroke with current drawing colour
-				strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor})
+				// start new stroke with current drawing colour and width
+				strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth})
 			case pointer.Drag:
 				if drawing {
 					s := &strokes[len(strokes)-1]
@@ -244,7 +286,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 		paint.FillShape(ops, s.col,
 			clip.Stroke{
 				Path:  path.End(),
-				Width: 4,
+				Width: s.width,
 			}.Op())
 	}
 }
