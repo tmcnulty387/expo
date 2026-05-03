@@ -74,14 +74,19 @@ func Loop(ctx context.Context) error {
 	customColorInput.Submit = true
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	inactiveTh := material.NewTheme() // colour theme for "inactive" buttons
+	inactiveTh.Shaper = th.Shaper
+	inactiveTh.Palette.ContrastBg = color.NRGBA{R: 150, G: 150, B: 150, A: 255}
 	// colour palette setup vars (needs to be persistent across frames)
 	colorChoices := []color.NRGBA{Black, Red, Green, Blue, Yellow, Cyan, Magenta, Orange}
 	var colorBtns = make([]widget.Clickable, len(colorChoices))
 	// buttons for decreasing or increasing stroke width
 	var decWidth widget.Clickable
 	var incWidth widget.Clickable
+	// toggle for freehand draw mode
+	var drawBtn widget.Clickable
 	// toggle for line mode
-	var lineModeBtn widget.Clickable
+	var lineBtn widget.Clickable
 	// eraser controls
 	var eraserBtn widget.Clickable
 	var decEraser widget.Clickable
@@ -138,7 +143,7 @@ func Loop(ctx context.Context) error {
 			}
 
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(TopToolbar(th, &lineModeBtn, &eraserBtn)),
+				layout.Rigid(TopToolbar(th, inactiveTh, &drawBtn, &lineBtn, &eraserBtn)),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 						layout.Rigid(Sidebar(th, colorChoices, colorBtns, &customColorInput, &decWidth, &incWidth, &decEraser, &incEraser)),

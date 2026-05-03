@@ -15,47 +15,50 @@ import (
 )
 
 // TopToolbar returns a widget that renders the top toolbar with mode toggles (will later be tool selection bar).
-func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
+func TopToolbar(th *material.Theme, inactiveTh *material.Theme, drawBtn, lineBtn, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// Record the content ops (operators - buttons, etc.) so we can draw background/border behind it
 		rec := op.Record(gtx.Ops)
 		dims := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					for lineModeBtn.Clicked(gtx) {
-						drawMode = !drawMode
-						lineMode = !lineMode
-						if !lineMode {
-							previewActive = false
-						}
-						if lineMode || drawMode {
-							eraserMode = false
-						}
+					for drawBtn.Clicked(gtx) {
+						disableAllModes()
+						drawMode = true
 					}
-					label := "Freehand"
-					if lineMode {
-						label = "Line"
+					theme := th
+					if !drawMode {
+						theme = inactiveTh
 					}
-					btn := material.Button(th, lineModeBtn, label)
+					btn := material.Button(theme, drawBtn, "Draw")
+					btn.TextSize = unit.Sp(12)
+					return btn.Layout(gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					for lineBtn.Clicked(gtx) {
+						disableAllModes()
+						lineMode = true
+					}
+					theme := th
+					if !lineMode {
+						theme = inactiveTh
+					}
+					btn := material.Button(theme, lineBtn, "Line")
 					btn.TextSize = unit.Sp(12)
 					return btn.Layout(gtx)
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					for eraserBtn.Clicked(gtx) {
-						eraserMode = !eraserMode
-						if eraserMode {
-							drawMode = false
-							lineMode = false
-							previewActive = false
-							drawing = false
-						}
+						disableAllModes()
+						eraserMode = true
 					}
-					label := "Eraser"
-					if eraserMode {
-						label = "Eraser On"
+					theme := th
+					if !eraserMode {
+						theme = inactiveTh
 					}
-					btn := material.Button(th, eraserBtn, label)
+					btn := material.Button(theme, eraserBtn, "Eraser")
 					btn.TextSize = unit.Sp(12)
 					return btn.Layout(gtx)
 				}),
@@ -81,7 +84,7 @@ func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) fu
 	}
 }
 
-// Sidebar renders a vertical palette on the left and updates the global drawColor.
+// Sidebar renders a vertical palette on the left and updates global settings like drawColor.
 func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth, decEraser, incEraser *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// first define some standard values for gap measurements
