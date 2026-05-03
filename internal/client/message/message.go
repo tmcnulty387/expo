@@ -94,7 +94,7 @@ func readMessage(r io.Reader, length int32, message Message) error {
 }
 
 // Reads a [Message] from the provided reader.
-// Use a type switch on message to determine the concrete type.
+// Use a type switch to determine the concrete type.
 // message is guaranteed to be non-nil if and only if err is nil.
 func Read(r io.Reader) (message Message, err error) {
 	var header Header
