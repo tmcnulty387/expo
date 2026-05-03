@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/color"
 	"log"
-	"math"
 	"strings"
 
 	"gioui.org/app"
@@ -317,39 +316,7 @@ func eraseAt(eraserPos f32.Point) {
 		}
 		// else check if it's a straight line in range of eraserPos
 		if !hit && len(s.points) == 2 {
-			// https://www.geeksforgeeks.org/dsa/minimum-distance-from-a-point-to-the-line-segment-using-vectors/
-			a, b := s.points[0], s.points[1]
-			// define vector AB
-			abx := b.X - a.X
-			aby := b.Y - a.Y
-			// define vector AC (a -> eraserPos)
-			acx := eraserPos.X - a.X
-			acy := eraserPos.Y - a.Y
-			// define vector BC (b -> eraserPos)
-			bcx := eraserPos.X - b.X
-			bcy := eraserPos.Y - b.Y
-			// calculate dot products
-			ab_bc := abx*bcx + aby*bcy
-			ab_ac := abx*acx + aby*acy
-			// minimum distance from point to line segment, squared
-			distanceSqrd := float32(0)
-			if ab_bc > 0 { // Case 1: B is closest point
-				y := eraserPos.Y - b.Y
-				x := eraserPos.X - b.X
-				distanceSqrd = x*x + y*y
-			} else if ab_ac < 0 { // Case 2: A is closest point
-				y := eraserPos.Y - a.Y
-				x := eraserPos.X - a.X
-				distanceSqrd = x*x + y*y
-			} else { // Case 3: C is perpendicular to AB, must calculate closest point
-				mod := math.Sqrt(float64(abx*abx + aby*aby))
-				distToClosest := float32(math.Abs(float64(abx*acy-aby*acx)) / mod)
-				distanceSqrd = distToClosest * distToClosest
-			}
-			// check distance against eraser size
-			if distanceSqrd <= r2 {
-				hit = true
-			}
+			hit = isErasableLine(s, r2)
 		}
 		if !hit {
 			// if this stroke should not be erased, add it back to the updated list of strokes
