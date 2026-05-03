@@ -14,10 +14,10 @@ import (
 	"gioui.org/widget/material"
 )
 
-// TopToolbar returns a widget that renders the top toolbar with mode toggles and title.
+// TopToolbar returns a widget that renders the top toolbar with mode toggles (will later be tool selection bar).
 func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		// Record the content ops so we can draw the background/border behind it
+		// Record the content ops (operators - buttons, etc.) so we can draw background/border behind it
 		rec := op.Record(gtx.Ops)
 		dims := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -82,8 +82,8 @@ func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) fu
 // Sidebar renders a vertical palette on the left and updates the global drawColor.
 func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
+		// first define some standard values for gap measurements
 		sectionGapDp := 8
-
 		// compact grid: target 4 swatches per row
 		swatchDp := 20
 		gapDp := 4
@@ -92,12 +92,12 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 		totalDp := swatchDp*itemsPerRow + gapDp*(itemsPerRow-1) + insetDp*2
 		gtx.Constraints.Min.X = gtx.Dp(unit.Dp(totalDp))
 
-		// Record child ops so the background can be drawn behind them
+		// Record child ops (operators) so background can be drawn behind them
 		rec := op.Record(gtx.Ops)
 		dims := layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0)
 
-			// Label for the color grid
+			// Starting with the colour picker
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				lbl := material.Body1(th, "Color:")
 				return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
@@ -237,7 +237,9 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 	}
 }
 
-// BottomControls returns the row of session/session code/editor and width/eraser controls.
+// BottomControls returns the row of session/session code editor and width/eraser controls (will be moved to sidebar later).
+// TODO: Move all tool controls to sidebar - Rina
+// TODO: Give this a slightly darker background, same style as top/sidebars - Rina
 func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor, decEraser, incEraser, lineModeBtn, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
