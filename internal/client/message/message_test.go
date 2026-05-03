@@ -2,15 +2,13 @@ package message
 
 import (
 	"bytes"
-	"encoding/binary"
-	"io"
 	"testing"
 )
 
-func TestWrite(t *testing.T) {
+func testMessage(t *testing.T, message Message) {
+	t.Logf("testing: %+v", message)
 	buf := new(bytes.Buffer)
-	message := Echo{Text: "Hello, World!"}
-	err := Write(buf, &message)
+	err := Write(buf, message)
 	if err != nil {
 		t.Error(err)
 	}
@@ -19,28 +17,23 @@ func TestWrite(t *testing.T) {
 
 	r := bytes.NewReader(b)
 
-	var header Header
-	err = binary.Read(r, ByteOrder, &header)
+	message2, err := Read(r)
 	if err != nil {
 		t.Error(err)
-	}
-	if header.Kind != EchoKind {
-		t.Error("header.Kind != EchoKind")
-	}
-	if header.Length != int32(len(message.Text)) {
-		t.Error("header.Length != len(message.Text)")
 	}
 
-	payloadBytes, err := io.ReadAll(r)
-	if err != nil {
-		t.Error(err)
-	}
-	var message2 Echo
-	err = message2.UnmarshalBinary(payloadBytes)
-	if err != nil {
-		t.Error(err)
-	}
-	if message != message2 {
+	if !message.Equals(message2) {
 		t.Errorf("message != message2: %+v", message2)
+	}
+}
+
+func TestMessagesWriteRead(t *testing.T) {
+	// XXX: Update this when adding new message types
+	for _, message := range []Message{
+		&Echo{Text: "Hello, World!"},
+		&Echo{Text: ""},
+		&Echo{},
+	} {
+		testMessage(t, message)
 	}
 }
