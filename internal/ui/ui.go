@@ -169,7 +169,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 		// this function as well?
 		ev, ok := source.Event(pointer.Filter{
 			Target: tag,
-			Kinds:  pointer.Move | pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
+			Kinds:  pointer.Move | pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel | pointer.Leave,
 		})
 		if !ok {
 			break
@@ -182,6 +182,8 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 					eraserPreviewActive = true
 					eraserPos = e.Position
 					log.Println("Eraser preview started")
+				} else {
+					eraserPreviewActive = false
 				}
 			case pointer.Press:
 				if eraserMode { // eraser
@@ -239,6 +241,10 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 					}
 					drawing = false
 					log.Println("Cancelled Drawing")
+				}
+			case pointer.Leave:
+				if eraserMode {
+					eraserPreviewActive = false
 				}
 			}
 			log.Println("Event: ", e)
