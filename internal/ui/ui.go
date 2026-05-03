@@ -2,11 +2,10 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"image"
 	"image/color"
 	"log"
-	"strconv"
+	"math"
 	"strings"
 
 	"gioui.org/app"
@@ -255,7 +254,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 		p.MoveTo(lineStart)
 		p.LineTo(previewEnd)
 		c := drawColor
-		c.A = 128
+		c.A = 128 // preview at half opacity
 		paint.FillShape(ops, c,
 			clip.Stroke{
 				Path:  p.End(),
@@ -265,46 +264,56 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 }
 
 // eraseAt removes any stroke that has a point within eraserSize of pos
-func eraseAt(pos f32.Point) {
+func eraseAt(eraserPos f32.Point) {
 	r2 := eraserSize * eraserSize
-	out := strokes[:0]
+	updatedStrokes := strokes[:0] // stores any strokes that weren't erased
 	for _, s := range strokes {
 		hit := false
+		// first check for freehand line in range of eraserPos
 		for _, p := range s.points {
-			dx := p.X - pos.X
-			dy := p.Y - pos.Y
+			dx := p.X - eraserPos.X
+			dy := p.Y - eraserPos.Y
 			if dx*dx+dy*dy <= r2 {
 				hit = true
 				break
 			}
 		}
+		// else check if it's a straight line in range of eraserPos
+		// for now, just checking for eraserPos being exactly on the line segment
+		if !hit && len(s.points) == 2 {
+			// cross product magic
+			a, b := s.points[0], s.points[1]
+			dxc := eraserPos.X - a.X
+			dyc := eraserPos.Y - b.Y
+			dxl := b.X - a.X
+			dyl := b.Y - a.Y
+			cross := dxc*dyl - dyc*dxl
+			if cross == 0 { // lies on the line
+				// now check that it's between the line endpoints
+				if math.Abs(float64(dxl)) >= math.Abs(float64(dyl)) {
+					// line is "more horizontal than vertical"
+					// so compare x coords
+					if dxl > 0 {
+						hit = a.X <= eraserPos.X && eraserPos.X <= b.X
+					} else {
+						hit = b.X <= eraserPos.X && eraserPos.X <= a.X
+					}
+				} else {
+					// line is "more vertical than horizontal"
+					// so compare y coords
+					if dyl > 0 {
+						hit = a.Y <= eraserPos.Y && eraserPos.Y <= b.Y
+					} else {
+						hit = b.Y <= eraserPos.Y && eraserPos.Y <= a.Y
+					}
+				}
+				// after all that, hit should only be true if the eraser is on the line
+			}
+		}
 		if !hit {
-			out = append(out, s)
+			// if this stroke should not be erased, add it back to the updated list of strokes
+			updatedStrokes = append(updatedStrokes, s)
 		}
 	}
-	strokes = out
-}
-
-// parseHexColor parses 6- or 8-digit hex color strings like "#RRGGBB" or "RRGGBBAA"
-func parseHexColor(s string) (color.NRGBA, error) {
-	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "#")
-	if len(s) != 6 && len(s) != 8 {
-		return color.NRGBA{}, fmt.Errorf("invalid hex length")
-	}
-	v, err := strconv.ParseUint(s, 16, 32)
-	if err != nil {
-		return color.NRGBA{}, err
-	}
-	if len(s) == 6 {
-		r := uint8(v >> 16)
-		g := uint8((v >> 8) & 0xFF)
-		b := uint8(v & 0xFF)
-		return color.NRGBA{R: r, G: g, B: b, A: 255}, nil
-	}
-	r := uint8(v >> 24)
-	g := uint8((v >> 16) & 0xFF)
-	b := uint8((v >> 8) & 0xFF)
-	a := uint8(v & 0xFF)
-	return color.NRGBA{R: r, G: g, B: b, A: a}, nil
+	strokes = updatedStrokes
 }
