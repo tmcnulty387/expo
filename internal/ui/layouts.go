@@ -99,83 +99,91 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 		dims := layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0)
 
-			// Starting with the colour picker
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Body1(th, "Color:")
-				return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
-			}))
-			children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(gapDp / 2)}.Layout))
+			// display Color selector if needed for current tool
+			if drawMode || lineMode {
+				colorLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					lbl := material.Body1(th, "Color:")
+					return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
+				})
 
-			// build rows of up to itemsPerRow
-			for i := 0; i < len(palette); i += itemsPerRow {
-				end := i + itemsPerRow
-				if end > len(palette) {
-					end = len(palette)
-				}
-				start := i
-				// row widget
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rowChildren := make([]layout.FlexChild, 0)
-					for j := start; j < end; j++ {
-						idx := j
-						rowChildren = append(rowChildren, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							for colorBtns[idx].Clicked(gtx) {
-								drawColor = palette[idx]
+				smallGap := layout.Rigid(layout.Spacer{Height: unit.Dp(gapDp / 2)}.Layout)
+
+				children = append(children, colorLbl, smallGap)
+
+				// build rows of up to itemsPerRow
+				for i := 0; i < len(palette); i += itemsPerRow {
+					end := i + itemsPerRow
+					if end > len(palette) {
+						end = len(palette)
+					}
+					start := i
+					// row widget
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						rowChildren := make([]layout.FlexChild, 0)
+						for j := start; j < end; j++ {
+							idx := j
+							rowChildren = append(rowChildren, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								for colorBtns[idx].Clicked(gtx) {
+									drawColor = palette[idx]
+								}
+								gtx.Constraints.Min.X = gtx.Dp(unit.Dp(swatchDp))
+								gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(swatchDp))
+								btn := material.Button(th, &colorBtns[idx], "")
+								btn.Background = palette[idx]
+								btn.TextSize = unit.Sp(0)
+								return btn.Layout(gtx)
+							}))
+							if j < end-1 {
+								rowChildren = append(rowChildren, layout.Rigid(layout.Spacer{Width: unit.Dp(gapDp)}.Layout))
 							}
+						}
+						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, rowChildren...)
+					}))
+					// spacer between rows
+					children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(gapDp)}.Layout))
+				}
+
+				// Now add custom color editor and preview below grid
+				gap := layout.Rigid(layout.Spacer{Height: unit.Dp(gapDp)}.Layout)
+
+				customColorLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					lbl := material.Body2(th, "Or Custom:")
+					return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
+				})
+
+				customColorEditor := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							borderColor := Gray
+							if gtx.Source.Focused(customEditor) {
+								borderColor = Blue
+							}
+							border := widget.Border{
+								Color:        borderColor,
+								Width:        unit.Dp(1),
+								CornerRadius: unit.Dp(6),
+							}
+							return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return material.Editor(th, customEditor, "#RRGGBB").Layout(gtx)
+								})
+							})
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(gapDp)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints.Min.X = gtx.Dp(unit.Dp(swatchDp))
 							gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(swatchDp))
-							btn := material.Button(th, &colorBtns[idx], "")
-							btn.Background = palette[idx]
+							var preview widget.Clickable
+							btn := material.Button(th, &preview, "")
+							btn.Background = drawColor
 							btn.TextSize = unit.Sp(0)
 							return btn.Layout(gtx)
-						}))
-						if j < end-1 {
-							rowChildren = append(rowChildren, layout.Rigid(layout.Spacer{Width: unit.Dp(gapDp)}.Layout))
-						}
-					}
-					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, rowChildren...)
-				}))
-				// spacer between rows
-				children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(gapDp)}.Layout))
+						}),
+					)
+				})
+
+				children = append(children, gap, customColorLbl, customColorEditor)
 			}
-
-			// Add custom color editor and preview below grid
-			children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(gapDp)}.Layout))
-
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Body2(th, "Or Custom:")
-				return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
-			}))
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						borderColor := Gray
-						if gtx.Source.Focused(customEditor) {
-							borderColor = Blue
-						}
-						border := widget.Border{
-							Color:        borderColor,
-							Width:        unit.Dp(1),
-							CornerRadius: unit.Dp(6),
-						}
-						return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return material.Editor(th, customEditor, "#RRGGBB").Layout(gtx)
-							})
-						})
-					}),
-					layout.Rigid(layout.Spacer{Width: unit.Dp(gapDp)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X = gtx.Dp(unit.Dp(swatchDp))
-						gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(swatchDp))
-						var preview widget.Clickable
-						btn := material.Button(th, &preview, "")
-						btn.Background = drawColor
-						btn.TextSize = unit.Sp(0)
-						return btn.Layout(gtx)
-					}),
-				)
-			}))
 
 			// display Stroke Width selector if needed for current tool
 			if drawMode || lineMode {
