@@ -52,12 +52,14 @@ var (
 	strokeWidth float32 = 4
 	strokes     []stroke
 	// straight line vs free draw mode state
-	lineMode      = false
-	previewActive = false
-	lineStart     f32.Point
-	previewEnd    f32.Point
-	eraserMode            = false
-	eraserSize    float32 = 12
+	lineMode            = false
+	previewActive       = false
+	lineStart           f32.Point
+	previewEnd          f32.Point
+	eraserMode          = false
+	eraserPreviewActive = false
+	eraserPos           f32.Point
+	eraserSize          float32 = 12
 )
 
 func Loop(ctx context.Context) error {
@@ -175,8 +177,17 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 
 		if e, ok := ev.(pointer.Event); ok {
 			switch e.Kind {
+			case pointer.Move:
+				if eraserMode { // eraser preview
+					eraserPreviewActive = true
+					eraserPos = e.Position
+					log.Println("Eraser preview started")
+				}
 			case pointer.Press:
 				if eraserMode { // eraser
+					eraserPreviewActive = true
+					eraserPos = e.Position
+					log.Println("Started Erasing")
 					eraseAt(e.Position)
 				} else if lineMode { // straight line
 					// start line preview
@@ -193,6 +204,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			case pointer.Drag:
 				if eraserMode {
 					eraseAt(e.Position)
+					eraserPos = e.Position
 				} else if lineMode && previewActive {
 					previewEnd = e.Position
 				} else if drawing {
@@ -201,7 +213,8 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				}
 			case pointer.Release:
 				if eraserMode {
-					// nothing special on release for eraser
+					eraserPreviewActive = false
+					log.Println("Stopped Erasing")
 				} else if lineMode && previewActive {
 					// commit straight line as a two-point stroke
 					strokes = append(strokes, stroke{points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth})
@@ -215,7 +228,8 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				}
 			case pointer.Cancel:
 				if eraserMode {
-					// nothing specific for eraser
+					eraserPreviewActive = false
+					log.Println("Cancelled Erasing")
 				} else if lineMode && previewActive {
 					previewActive = false
 					log.Println("Cancelled Line Preview")
@@ -261,6 +275,21 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				Width: strokeWidth,
 			}.Op())
 	}
+
+	if eraserPreviewActive {
+		// render circle
+		paint.FillShape(ops, circleColor, circle)
+	}
+}
+
+// previewErase draws a semi-transparent preview circle on the screen where the user's eraser is placed
+func previewErase(ops *op.Ops) {
+	// generate preview circle (for eraser mode)
+	topLeft := image.Pt(eraserPos.Round().X-int(eraserSize), eraserPos.Round().Y-int(eraserSize))
+	bottomRight := image.Pt(eraserPos.Round().X+int(eraserSize), eraserPos.Round().Y+int(eraserSize))
+	circle := clip.Ellipse{Min: topLeft, Max: bottomRight}.Op(ops)
+	circleColor := color.NRGBA{R: 233, G: 233, B: 233, A: 128}
+	return circle, circleColor
 }
 
 // eraseAt removes any stroke that has a point within eraserSize of pos
