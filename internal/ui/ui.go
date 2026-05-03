@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"strconv"
 	"strings"
 
 	"gioui.org/app"
@@ -19,7 +20,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/text"
-	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
@@ -51,6 +51,13 @@ var (
 	drawColor           = Black
 	strokeWidth float32 = 4
 	strokes     []stroke
+	// straight line vs free draw mode state
+	lineMode      = false
+	previewActive = false
+	lineStart     f32.Point
+	previewEnd    f32.Point
+	eraserMode            = false
+	eraserSize    float32 = 12
 )
 
 func Loop(ctx context.Context) error {
@@ -61,6 +68,9 @@ func Loop(ctx context.Context) error {
 	var sessionCodeInput widget.Editor
 	sessionCodeInput.SingleLine = true
 	sessionCodeInput.Submit = true
+	var customColorInput widget.Editor
+	customColorInput.SingleLine = true
+	customColorInput.Submit = true
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	// colour palette setup vars (needs to be persistent across frames)
@@ -69,6 +79,12 @@ func Loop(ctx context.Context) error {
 	// buttons for decreasing or increasing stroke width
 	var decWidth widget.Clickable
 	var incWidth widget.Clickable
+	// toggle for line mode
+	var lineModeBtn widget.Clickable
+	// eraser controls
+	var eraserBtn widget.Clickable
+	var decEraser widget.Clickable
+	var incEraser widget.Clickable
 
 	var ops op.Ops
 	for {
@@ -104,119 +120,35 @@ func Loop(ctx context.Context) error {
 				}
 			}
 
+			for {
+				ev, ok := customColorInput.Update(gtx)
+				if !ok {
+					break
+				}
+				if sub, ok := ev.(widget.SubmitEvent); ok {
+					hex := strings.TrimSpace(sub.Text)
+					if c, err := parseHexColor(hex); err == nil {
+						drawColor = c
+						log.Println("Set custom draw color:", hex)
+					} else {
+						log.Println("Invalid hex color:", hex, err)
+					}
+				}
+			}
+
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(TopToolbar(th, &lineModeBtn, &eraserBtn)),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					draw(gtx.Ops, gtx.Source, gtx.Constraints.Max)
-					return layout.Dimensions{Size: gtx.Constraints.Max}
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+						layout.Rigid(Sidebar(th, colorChoices, colorBtns, &customColorInput, &decWidth, &incWidth)),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							draw(gtx.Ops, gtx.Source, gtx.Constraints.Max)
+							return layout.Dimensions{Size: gtx.Constraints.Max}
+						}),
+					)
 				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								if inSession {
-									btn := material.Button(th, &toggleSessionBtn, "Stop Session")
-									btn.TextSize = unit.Sp(14)
-									btn.Background = Red
-									return btn.Layout(gtx)
-								} else {
-									btn := material.Button(th, &toggleSessionBtn, "Start Session")
-									btn.TextSize = unit.Sp(14)
-									return btn.Layout(gtx)
-								}
-							}),
-							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								if inSession {
-									textValue := sessionCode
-									if textValue == "" {
-										textValue = "(not set)"
-									}
-									lbl := material.Body1(th, "Session: "+textValue)
-									return layout.UniformInset(unit.Dp(9)).Layout(gtx, lbl.Layout)
-								}
-
-								borderColor := Gray
-								if gtx.Source.Focused(&sessionCodeInput) {
-									borderColor = Blue
-								}
-
-								border := widget.Border{
-									Color:        borderColor,
-									Width:        unit.Dp(1),
-									CornerRadius: unit.Dp(6),
-								}
-
-								gtx.Constraints.Min.X = gtx.Dp(180)
-
-								return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										return material.Editor(th, &sessionCodeInput, "Session Code").Layout(gtx)
-									})
-								})
-							}),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								// colour picker tool: label + colour swatches
-								return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									children := make([]layout.FlexChild, 0, len(colorChoices)+1)
-									children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										lbl := material.Body1(th, "Color:")
-										return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
-									}))
-									for i := range colorChoices {
-										ci := i
-										children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											btn := &colorBtns[ci]
-											for btn.Clicked(gtx) {
-												drawColor = colorChoices[ci]
-											}
-											return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												mbtn := material.Button(th, btn, "")
-												mbtn.Background = colorChoices[ci]
-												return mbtn.Layout(gtx)
-											})
-										}))
-									}
-									return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
-								})
-							}),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								// stroke width controls: decrement, display, increment
-								return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											for decWidth.Clicked(gtx) {
-												if strokeWidth > 1 {
-													strokeWidth -= 1
-												}
-											}
-											btn := material.Button(th, &decWidth, "-")
-											btn.TextSize = unit.Sp(14)
-											return btn.Layout(gtx)
-										}),
-										layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											lbl := material.Body1(th, fmt.Sprintf("%.0f", float32(strokeWidth)))
-											return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
-										}),
-										layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											for incWidth.Clicked(gtx) {
-												if strokeWidth < 64 {
-													strokeWidth += 1
-												}
-											}
-											btn := material.Button(th, &incWidth, "+")
-											btn.TextSize = unit.Sp(14)
-											return btn.Layout(gtx)
-										}),
-									)
-								})
-							}),
-						)
-					})
-				}),
+				layout.Rigid(BottomControls(th, &toggleSessionBtn, &sessionCodeInput, &decEraser, &incEraser, &lineModeBtn, &eraserBtn)),
 			)
-
 			e.Frame(gtx.Ops)
 		}
 	}
@@ -244,24 +176,50 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 		if e, ok := ev.(pointer.Event); ok {
 			switch e.Kind {
 			case pointer.Press:
-				drawing = true
-				log.Println("Started Drawing")
-				// start new stroke with current drawing colour and width
-				strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth})
+				if eraserMode { // eraser
+					eraseAt(e.Position)
+				} else if lineMode { // straight line
+					// start line preview
+					previewActive = true
+					lineStart = e.Position
+					previewEnd = e.Position
+					log.Println("Line preview started")
+				} else { // freehand drawing
+					drawing = true
+					log.Println("Started Drawing")
+					// start new stroke with current drawing colour and width
+					strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth})
+				}
 			case pointer.Drag:
-				if drawing {
+				if eraserMode {
+					eraseAt(e.Position)
+				} else if lineMode && previewActive {
+					previewEnd = e.Position
+				} else if drawing {
 					s := &strokes[len(strokes)-1]
 					s.points = append(s.points, e.Position)
 				}
 			case pointer.Release:
-				if drawing {
+				if eraserMode {
+					// nothing special on release for eraser
+				} else if lineMode && previewActive {
+					// commit straight line as a two-point stroke
+					strokes = append(strokes, stroke{points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth})
+					previewActive = false
+					log.Println("Committed straight line")
+				} else if drawing {
 					s := &strokes[len(strokes)-1]
 					s.points = append(s.points, e.Position)
 					drawing = false
 					log.Println("Stopped Drawing")
 				}
 			case pointer.Cancel:
-				if drawing {
+				if eraserMode {
+					// nothing specific
+				} else if lineMode && previewActive {
+					previewActive = false
+					log.Println("Cancelled Line Preview")
+				} else if drawing {
 					if len(strokes[len(strokes)-1].points) == 1 {
 						strokes = strokes[:len(strokes)-1]
 					}
@@ -289,4 +247,63 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				Width: s.width,
 			}.Op())
 	}
+	// render preview line (for straight-line mode)
+	if previewActive {
+		var p clip.Path
+		p.Begin(ops)
+		p.MoveTo(lineStart)
+		p.LineTo(previewEnd)
+		c := drawColor
+		c.A = 128
+		paint.FillShape(ops, c,
+			clip.Stroke{
+				Path:  p.End(),
+				Width: strokeWidth,
+			}.Op())
+	}
+}
+
+// eraseAt removes any stroke that has a point within eraserSize of pos
+func eraseAt(pos f32.Point) {
+	r2 := eraserSize * eraserSize
+	out := strokes[:0]
+	for _, s := range strokes {
+		hit := false
+		for _, p := range s.points {
+			dx := p.X - pos.X
+			dy := p.Y - pos.Y
+			if dx*dx+dy*dy <= r2 {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			out = append(out, s)
+		}
+	}
+	strokes = out
+}
+
+// parseHexColor parses 6- or 8-digit hex color strings like "#RRGGBB" or "RRGGBBAA".
+func parseHexColor(s string) (color.NRGBA, error) {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "#")
+	if len(s) != 6 && len(s) != 8 {
+		return color.NRGBA{}, fmt.Errorf("invalid hex length")
+	}
+	v, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		return color.NRGBA{}, err
+	}
+	if len(s) == 6 {
+		r := uint8(v >> 16)
+		g := uint8((v >> 8) & 0xFF)
+		b := uint8(v & 0xFF)
+		return color.NRGBA{R: r, G: g, B: b, A: 255}, nil
+	}
+	r := uint8(v >> 24)
+	g := uint8((v >> 16) & 0xFF)
+	b := uint8((v >> 8) & 0xFF)
+	a := uint8(v & 0xFF)
+	return color.NRGBA{R: r, G: g, B: b, A: a}, nil
 }
