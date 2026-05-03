@@ -18,8 +18,6 @@ import (
 
 // TODO: Separate out into internal/networking? Replace with CLI function?
 func cli(ctx context.Context) error {
-	lines := make(chan string, 10)
-
 	// TODO: remove placeholder example connection attempt
 	conn, err := tls.Dial("tcp", "mail.google.com:443", nil)
 	if err != nil {
@@ -28,6 +26,7 @@ func cli(ctx context.Context) error {
 	log.Printf("connection: %s\n", conn.RemoteAddr())
 	defer conn.Close()
 
+	lines := make(chan string, 10)
 	go func() {
 		scanner := bufio.NewScanner(os.Stdin)
 		for {

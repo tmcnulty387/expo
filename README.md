@@ -39,6 +39,13 @@ Live reload with Air:
 $ air --build.cmd "go build -o ./tmp/expo ./cmd/expo" \
     --build.entrypoint "./tmp/expo"
 ```
+
+To run all test cases:
+
+```shell-session
+$ go test ./...
+```
+
 =======
 ## Testing Goals:
 It works :)
