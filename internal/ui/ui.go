@@ -33,24 +33,24 @@ type stroke struct {
 const appTitle = "EXPO"
 
 var (
-	Red         = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
-	Green       = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
-	Blue        = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
-	Yellow      = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
-	Cyan        = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
-	Magenta     = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
-	Black       = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
-	White       = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	Gray        = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
-	Orange      = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
-	tag         = new(int)
-	drawing     = false
-	inSession   = false
-	sessionCode string
-	drawColor           = Black
-	strokeWidth float32 = 4
-	strokes     []stroke
-	// straight line vs free draw mode state
+	Red                 = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
+	Green               = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
+	Blue                = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
+	Yellow              = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
+	Cyan                = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
+	Magenta             = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
+	Black               = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
+	White               = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	Gray                = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
+	Orange              = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
+	tag                 = new(int)
+	drawing             = false
+	inSession           = false
+	sessionCode         string
+	drawColor                   = Black
+	strokeWidth         float32 = 4
+	strokes             []stroke
+	drawMode            = true // defaults to draw state
 	lineMode            = false
 	previewActive       = false
 	lineStart           f32.Point

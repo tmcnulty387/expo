@@ -23,11 +23,12 @@ func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) fu
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					for lineModeBtn.Clicked(gtx) {
+						drawMode = !drawMode
 						lineMode = !lineMode
 						if !lineMode {
 							previewActive = false
 						}
-						if lineMode {
+						if lineMode || drawMode {
 							eraserMode = false
 						}
 					}
@@ -44,6 +45,7 @@ func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) fu
 					for eraserBtn.Clicked(gtx) {
 						eraserMode = !eraserMode
 						if eraserMode {
+							drawMode = false
 							lineMode = false
 							previewActive = false
 							drawing = false
@@ -176,78 +178,90 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 			}))
 
 			// display Stroke Width selector if needed for current tool
+			if drawMode || lineMode {
+				gap := layout.Rigid(layout.Spacer{Height: unit.Dp(sectionGapDp)}.Layout)
 
-			children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(sectionGapDp)}.Layout))
+				strokeLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					lbl := material.Body1(th, "Stroke Width:")
+					return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
+				})
 
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Body1(th, "Stroke Width:")
-				return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
-			}))
-
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						for decWidth.Clicked(gtx) {
-							if strokeWidth > 1 {
-								strokeWidth -= 1
+				strokeButtons := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							for decWidth.Clicked(gtx) {
+								if strokeWidth > 1 {
+									strokeWidth -= 1
+								}
 							}
-						}
-						btn := material.Button(th, decWidth, "-")
-						btn.TextSize = unit.Sp(8)
-						return btn.Layout(gtx)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						lbl := material.Body1(th, fmt.Sprintf("%.0f", float32(strokeWidth)))
-						return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
-					}),
-					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						for incWidth.Clicked(gtx) {
-							if strokeWidth < 64 {
-								strokeWidth += 1
+							btn := material.Button(th, decWidth, "-")
+							btn.TextSize = unit.Sp(8)
+							return btn.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := material.Body1(th, fmt.Sprintf("%.0f", float32(strokeWidth)))
+							return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							for incWidth.Clicked(gtx) {
+								if strokeWidth < 64 {
+									strokeWidth += 1
+								}
 							}
-						}
-						btn := material.Button(th, incWidth, "+")
-						btn.TextSize = unit.Sp(8)
-						return btn.Layout(gtx)
-					}),
-				)
-			}))
+							btn := material.Button(th, incWidth, "+")
+							btn.TextSize = unit.Sp(8)
+							return btn.Layout(gtx)
+						}),
+					)
+				})
 
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !eraserMode {
-					return layout.Dimensions{}
-				}
-				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						for decEraser.Clicked(gtx) {
-							if eraserSize > 2 {
-								eraserSize -= 2
-							}
-						}
-						btn := material.Button(th, decEraser, "-")
-						btn.TextSize = unit.Sp(14)
-						return btn.Layout(gtx)
-					}),
-					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						lbl := material.Body1(th, fmt.Sprintf("E:%.0f", float32(eraserSize)))
-						return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
-					}),
-					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						for incEraser.Clicked(gtx) {
-							if eraserSize < 256 {
-								eraserSize += 2
-							}
-						}
-						btn := material.Button(th, incEraser, "+")
-						btn.TextSize = unit.Sp(14)
-						return btn.Layout(gtx)
-					}),
-				)
-			}))
+				children = append(children, gap, strokeLbl, strokeButtons)
+			}
 
+			// display Eraser Size selector if needed for current tool
+			if eraserMode {
+				gap := layout.Rigid(layout.Spacer{Height: unit.Dp(sectionGapDp)}.Layout)
+
+				eraserLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					lbl := material.Body1(th, "Eraser Size:")
+					return layout.UniformInset(unit.Dp(4)).Layout(gtx, lbl.Layout)
+				})
+
+				eraserButtons := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							for decEraser.Clicked(gtx) {
+								if strokeWidth > 1 {
+									strokeWidth -= 1
+								}
+							}
+							btn := material.Button(th, decEraser, "-")
+							btn.TextSize = unit.Sp(8)
+							return btn.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := material.Body1(th, fmt.Sprintf("%.0f", float32(eraserSize)))
+							return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							for incEraser.Clicked(gtx) {
+								if strokeWidth < 64 {
+									strokeWidth += 1
+								}
+							}
+							btn := material.Button(th, incEraser, "+")
+							btn.TextSize = unit.Sp(8)
+							return btn.Layout(gtx)
+						}),
+					)
+				})
+
+				children = append(children, gap, eraserLbl, eraserButtons)
+			}
+
+			// finally, return all appended children
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}.Layout(gtx, children...)
 		})
 		call := rec.Stop()
