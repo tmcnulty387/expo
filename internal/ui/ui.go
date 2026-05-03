@@ -279,35 +279,39 @@ func eraseAt(eraserPos f32.Point) {
 			}
 		}
 		// else check if it's a straight line in range of eraserPos
-		// for now, just checking for eraserPos being exactly on the line segment
 		if !hit && len(s.points) == 2 {
-			// cross product magic
+			// https://www.geeksforgeeks.org/dsa/minimum-distance-from-a-point-to-the-line-segment-using-vectors/
 			a, b := s.points[0], s.points[1]
-			dxc := eraserPos.X - a.X
-			dyc := eraserPos.Y - b.Y
-			dxl := b.X - a.X
-			dyl := b.Y - a.Y
-			cross := dxc*dyl - dyc*dxl
-			if cross == 0 { // lies on the line
-				// now check that it's between the line endpoints
-				if math.Abs(float64(dxl)) >= math.Abs(float64(dyl)) {
-					// line is "more horizontal than vertical"
-					// so compare x coords
-					if dxl > 0 {
-						hit = a.X <= eraserPos.X && eraserPos.X <= b.X
-					} else {
-						hit = b.X <= eraserPos.X && eraserPos.X <= a.X
-					}
-				} else {
-					// line is "more vertical than horizontal"
-					// so compare y coords
-					if dyl > 0 {
-						hit = a.Y <= eraserPos.Y && eraserPos.Y <= b.Y
-					} else {
-						hit = b.Y <= eraserPos.Y && eraserPos.Y <= a.Y
-					}
-				}
-				// after all that, hit should only be true if the eraser is on the line
+			// define vector AB
+			abx := b.X - a.X
+			aby := b.Y - a.Y
+			// define vector AC (a -> eraserPos)
+			acx := eraserPos.X - a.X
+			acy := eraserPos.Y - a.Y
+			// define vector BC (b -> eraserPos)
+			bcx := eraserPos.X - b.X
+			bcy := eraserPos.X - b.Y
+			// calculate dot products
+			ab_bc := abx*bcx + aby*bcy
+			ab_ac := abx*acx + aby*acy
+			// minimum distance from point to line segment, squared
+			distanceSqrd := float32(0)
+			if ab_bc > 0 { // Case 1: B is closest point
+				y := eraserPos.Y - b.Y
+				x := eraserPos.X - b.X
+				distanceSqrd = x*x + y*y
+			} else if ab_ac < 0 { // Case 2: A is closest point
+				y := eraserPos.Y - a.Y
+				x := eraserPos.X - a.X
+				distanceSqrd = x*x + y*y
+			} else { // Case 3: C is perpendicular to AB, must calculate closest point
+				mod := math.Sqrt(float64(abx*abx + aby*aby))
+				distToClosest := float32(math.Abs(float64(abx*acy-aby*acx)) / mod)
+				distanceSqrd = distToClosest * distToClosest
+			}
+			// check distance against eraser size
+			if distanceSqrd <= r2 {
+				hit = true
 			}
 		}
 		if !hit {
