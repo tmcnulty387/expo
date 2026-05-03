@@ -6,8 +6,11 @@ A native, distributed digital whiteboard application.
 
 `Please see docs/Proposal.md for the detailed Project Proposal.`
 
-*__Team Members:__ Sebastian LaVine, Tim McNulty, Rina Peshori*
-=======
+*__Team Members:__*
+- Sebastian LaVine
+- Tim McNulty
+- Rina Peshori
+
 ## Intended Components:
 - Gio UI
 - Standard Go TCP/IP stack (TLS)
