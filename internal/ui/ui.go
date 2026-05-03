@@ -141,14 +141,14 @@ func Loop(ctx context.Context) error {
 				layout.Rigid(TopToolbar(th, &lineModeBtn, &eraserBtn)),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						layout.Rigid(Sidebar(th, colorChoices, colorBtns, &customColorInput, &decWidth, &incWidth)),
+						layout.Rigid(Sidebar(th, colorChoices, colorBtns, &customColorInput, &decWidth, &incWidth, &decEraser, &incEraser)),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							draw(gtx.Ops, gtx.Source, gtx.Constraints.Max)
 							return layout.Dimensions{Size: gtx.Constraints.Max}
 						}),
 					)
 				}),
-				layout.Rigid(BottomControls(th, &toggleSessionBtn, &sessionCodeInput, &decEraser, &incEraser, &lineModeBtn, &eraserBtn)),
+				layout.Rigid(BottomControls(th, &toggleSessionBtn, &sessionCodeInput)),
 			)
 			e.Frame(gtx.Ops)
 		}

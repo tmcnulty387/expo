@@ -80,7 +80,7 @@ func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) fu
 }
 
 // Sidebar renders a vertical palette on the left and updates the global drawColor.
-func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth, decEraser, incEraser, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
+func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth, decEraser, incEraser *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// first define some standard values for gap measurements
 		sectionGapDp := 8
