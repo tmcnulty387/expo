@@ -14,27 +14,40 @@ var ByteOrder = binary.BigEndian
 
 type Message interface {
 	Kind() int32
+	// TODO: Equals is convenient for testing but is it necessary for
+	// application functionality?
+	Equals(m Message) bool
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
 
+// XXX: Update this when adding new message types
 const (
 	EchoKind int32 = iota
 )
 
+// Test message type.
 type Echo struct {
 	Text string
 }
 
 func (_ *Echo) Kind() int32 { return EchoKind }
-func (m *Echo) MarshalBinary() (data []byte, err error) {
-	return []byte(m.Text), nil
+func (echo *Echo) Equals(m Message) bool {
+	switch m := m.(type) {
+	case *Echo:
+		return *echo == *m
+	default:
+		return false
+	}
 }
-func (m *Echo) UnmarshalBinary(data []byte) error {
+func (echo *Echo) MarshalBinary() (data []byte, err error) {
+	return []byte(echo.Text), nil
+}
+func (echo *Echo) UnmarshalBinary(data []byte) error {
 	if !utf8.Valid(data) {
 		return errors.New("Invalid UTF-8")
 	}
-	m.Text = string(data)
+	echo.Text = string(data)
 	return nil
 }
 
@@ -65,9 +78,42 @@ func Write(w io.Writer, message Message) error {
 	return nil
 }
 
-// Reads the message from the provided reader.
-// TODO: What should this look like? How does writing to a generic work?
-func Read(r io.Reader, message Message) error {
-	// TODO: implement
-	return errors.New("Unimplemented")
+// Reads a [Message] of the provided length from the provided reader.
+// Assumes that a header has already been read from [ReadHeader].
+func readMessage(r io.Reader, length int32, message Message) error {
+	buffer := make([]byte, length)
+	_, err := io.ReadFull(r, buffer)
+	if err != nil {
+		return err
+	}
+	err = message.UnmarshalBinary(buffer)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Reads a [Message] from the provided reader.
+// Use a type switch on message to determine the concrete type.
+// message is guaranteed to be non-nil if and only if err is nil.
+func Read(r io.Reader) (message Message, err error) {
+	var header Header
+	err = binary.Read(r, ByteOrder, &header)
+	if err != nil {
+		return nil, err
+	}
+
+	// XXX: Update this when adding new message types
+	switch header.Kind {
+	case EchoKind:
+		message = &Echo{}
+	default:
+		return nil, errors.New("Unknown message kind")
+	}
+	err = readMessage(r, header.Length, message)
+	if err != nil {
+		return nil, err
+	}
+
+	return message, nil
 }
