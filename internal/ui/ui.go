@@ -169,7 +169,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 		// this function as well?
 		ev, ok := source.Event(pointer.Filter{
 			Target: tag,
-			Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
+			Kinds:  pointer.Move | pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
 		})
 		if !ok {
 			break
@@ -290,7 +290,7 @@ func previewErase() (clip.Ellipse, color.NRGBA) {
 	topLeft := image.Pt(eraserPos.Round().X-int(eraserSize), eraserPos.Round().Y-int(eraserSize))
 	bottomRight := image.Pt(eraserPos.Round().X+int(eraserSize), eraserPos.Round().Y+int(eraserSize))
 	circle := clip.Ellipse{Min: topLeft, Max: bottomRight}
-	circleColor := color.NRGBA{R: 222, G: 222, B: 222, A: 128}
+	circleColor := color.NRGBA{R: 222, G: 222, B: 222, A: 128} // light gray, semi-transparent
 	return circle, circleColor
 }
 
@@ -321,7 +321,7 @@ func eraseAt(eraserPos f32.Point) {
 			acy := eraserPos.Y - a.Y
 			// define vector BC (b -> eraserPos)
 			bcx := eraserPos.X - b.X
-			bcy := eraserPos.X - b.Y
+			bcy := eraserPos.Y - b.Y
 			// calculate dot products
 			ab_bc := abx*bcx + aby*bcy
 			ab_ac := abx*acx + aby*acy
