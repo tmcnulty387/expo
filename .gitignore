@@ -3,3 +3,4 @@ __debug*
 .idea/
 tmp/
 expo
+temp.go
