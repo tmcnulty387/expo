@@ -32,6 +32,20 @@ func parseHexColor(s string) (color.NRGBA, error) {
 	return color.NRGBA{R: r, G: g, B: b, A: a}, nil
 }
 
+// isErasableLine returns a bool value representing whether or not the given stroke, s, is an erasable freehand line
+// based on the current position of the eraser, its radius squared, and a given stroke
+func isErasableFreehand(s stroke, r2 float32) bool {
+	for _, p := range s.points {
+		dx := p.X - eraserPos.X
+		dy := p.Y - eraserPos.Y
+		if dx*dx+dy*dy <= r2 {
+			return true
+		}
+	}
+	// else...
+	return false
+}
+
 // isErasableLine returns a bool value representing whether or not the given stroke, s, is an erasable straight line
 // based on the current position of the eraser, its radius squared, and a given stroke
 func isErasableLine(s stroke, r2 float32) bool {

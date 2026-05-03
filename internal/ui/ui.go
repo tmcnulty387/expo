@@ -189,7 +189,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 					eraserPreviewActive = true
 					eraserPos = e.Position
 					log.Println("Started Erasing")
-					eraseAt(e.Position)
+					eraseAt()
 				} else if lineMode { // straight line
 					// start line preview
 					previewActive = true
@@ -204,7 +204,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				}
 			case pointer.Drag:
 				if eraserMode {
-					eraseAt(e.Position)
+					eraseAt()
 					eraserPos = e.Position
 				} else if lineMode && previewActive {
 					previewEnd = e.Position
@@ -300,20 +300,12 @@ func previewErase() (clip.Ellipse, color.NRGBA) {
 }
 
 // eraseAt removes any stroke that has a point within eraserSize of pos
-func eraseAt(eraserPos f32.Point) {
+func eraseAt() {
 	r2 := eraserSize * eraserSize
 	updatedStrokes := strokes[:0] // stores any strokes that weren't erased
 	for _, s := range strokes {
-		hit := false
 		// first check for freehand line in range of eraserPos
-		for _, p := range s.points {
-			dx := p.X - eraserPos.X
-			dy := p.Y - eraserPos.Y
-			if dx*dx+dy*dy <= r2 {
-				hit = true
-				break
-			}
-		}
+		hit := isErasableFreehand(s, r2)
 		// else check if it's a straight line in range of eraserPos
 		if !hit && len(s.points) == 2 {
 			hit = isErasableLine(s, r2)
