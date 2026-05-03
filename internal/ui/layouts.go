@@ -295,54 +295,74 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 	}
 }
 
-// BottomControls returns the row of session/session code editor and width/eraser controls (will be moved to sidebar later).
-// TODO: Move all tool controls to sidebar - Rina
+// BottomControls returns the row of session/session code editor.
 // TODO: Give this a slightly darker background, same style as top/sidebars - Rina
 func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if inSession {
-						btn := material.Button(th, toggleSessionBtn, "Stop Session")
-						btn.TextSize = unit.Sp(14)
-						btn.Background = Red
-						return btn.Layout(gtx)
-					}
-					btn := material.Button(th, toggleSessionBtn, "Start Session")
-					btn.TextSize = unit.Sp(14)
-					return btn.Layout(gtx)
-				}),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if inSession {
-						textValue := sessionCode
-						if textValue == "" {
-							textValue = "(not set)"
+		// Record the content ops (operators - buttons, etc.) so we can draw background/border behind it
+		rec := op.Record(gtx.Ops)
+		dims := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if inSession {
+							btn := material.Button(th, toggleSessionBtn, "Stop Session")
+							btn.TextSize = unit.Sp(14)
+							btn.Background = Red
+							return btn.Layout(gtx)
 						}
-						lbl := material.Body1(th, "Session: "+textValue)
-						return layout.UniformInset(unit.Dp(9)).Layout(gtx, lbl.Layout)
-					}
+						btn := material.Button(th, toggleSessionBtn, "Start Session")
+						btn.TextSize = unit.Sp(14)
+						return btn.Layout(gtx)
+					}),
+					layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if inSession {
+							textValue := sessionCode
+							if textValue == "" {
+								textValue = "(not set)"
+							}
+							lbl := material.Body1(th, "Session: "+textValue)
+							return layout.UniformInset(unit.Dp(9)).Layout(gtx, lbl.Layout)
+						}
 
-					borderColor := Gray
-					if gtx.Source.Focused(sessionCodeInput) {
-						borderColor = Blue
-					}
+						borderColor := Gray
+						if gtx.Source.Focused(sessionCodeInput) {
+							borderColor = Blue
+						}
 
-					border := widget.Border{
-						Color:        borderColor,
-						Width:        unit.Dp(1),
-						CornerRadius: unit.Dp(6),
-					}
+						border := widget.Border{
+							Color:        borderColor,
+							Width:        unit.Dp(1),
+							CornerRadius: unit.Dp(6),
+						}
 
-					gtx.Constraints.Min.X = gtx.Dp(180)
-					return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return material.Editor(th, sessionCodeInput, "Session Code").Layout(gtx)
+						gtx.Constraints.Min.X = gtx.Dp(180)
+						return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return material.Editor(th, sessionCodeInput, "Session Code").Layout(gtx)
+							})
 						})
-					})
-				}),
-			)
+					}),
+				)
+			})
 		})
+		call := rec.Stop()
+
+		// Draw light gray background and border with rounded corners
+		bg := color.NRGBA{R: 50, G: 50, B: 50, A: 50}
+		borderCol := color.NRGBA{R: 30, G: 30, B: 30, A: 255}
+		radius := gtx.Dp(unit.Dp(6))
+		borderWidth := gtx.Dp(unit.Dp(1))
+
+		rect := image.Rectangle{Max: dims.Size}
+		rr := clip.UniformRRect(rect, radius)
+		paint.FillShape(gtx.Ops, bg, rr.Op(gtx.Ops))
+		if borderWidth > 0 {
+			paint.FillShape(gtx.Ops, borderCol, clip.Stroke{Path: rr.Path(gtx.Ops), Width: float32(borderWidth)}.Op())
+		}
+
+		call.Add(gtx.Ops)
+		return dims
 	}
 }
