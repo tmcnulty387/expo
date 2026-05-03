@@ -27,7 +27,7 @@ func TestWrite(t *testing.T) {
 	if header.Kind != EchoKind {
 		t.Error("header.Kind != EchoKind")
 	}
-	if header.Length != uint32(len(message.Text)) {
+	if header.Length != int32(len(message.Text)) {
 		t.Error("header.Length != len(message.Text)")
 	}
 

@@ -13,20 +13,20 @@ import (
 var ByteOrder = binary.BigEndian
 
 type Message interface {
-	Kind() uint32
+	Kind() int32
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
 
 const (
-	EchoKind uint32 = iota
+	EchoKind int32 = iota
 )
 
 type Echo struct {
 	Text string
 }
 
-func (_ *Echo) Kind() uint32 { return EchoKind }
+func (_ *Echo) Kind() int32 { return EchoKind }
 func (m *Echo) MarshalBinary() (data []byte, err error) {
 	return []byte(m.Text), nil
 }
@@ -39,8 +39,8 @@ func (m *Echo) UnmarshalBinary(data []byte) error {
 }
 
 type Header struct {
-	Kind   uint32
-	Length uint32
+	Kind   int32
+	Length int32
 }
 
 // Writes the message to the provided writer.
@@ -51,7 +51,7 @@ func Write(w io.Writer, message Message) error {
 	if err != nil {
 		return err
 	}
-	header := Header{Kind: message.Kind(), Length: uint32(len(marshalled))}
+	header := Header{Kind: message.Kind(), Length: int32(len(marshalled))}
 	err = binary.Write(w, ByteOrder, header)
 	if err != nil {
 		return err
