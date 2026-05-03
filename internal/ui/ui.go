@@ -31,6 +31,7 @@ type stroke struct {
 	width  float32
 }
 
+// for window title display
 const appTitle = "EXPO"
 
 var (
@@ -163,7 +164,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 
 	// Process events that arrived between the last frame and this one.
 	for {
-		// TODO: I think we block here -- do we need to propogate context to
+		// TODO: I think we block here -- do we need to propagate context to
 		// this function as well?
 		ev, ok := source.Event(pointer.Filter{
 			Target: tag,
@@ -215,7 +216,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				}
 			case pointer.Cancel:
 				if eraserMode {
-					// nothing specific
+					// nothing specific for eraser
 				} else if lineMode && previewActive {
 					previewActive = false
 					log.Println("Cancelled Line Preview")
@@ -284,7 +285,7 @@ func eraseAt(pos f32.Point) {
 	strokes = out
 }
 
-// parseHexColor parses 6- or 8-digit hex color strings like "#RRGGBB" or "RRGGBBAA".
+// parseHexColor parses 6- or 8-digit hex color strings like "#RRGGBB" or "RRGGBBAA"
 func parseHexColor(s string) (color.NRGBA, error) {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "#")
