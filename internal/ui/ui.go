@@ -275,20 +275,22 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				Width: strokeWidth,
 			}.Op())
 	}
-
+	// preview for eraser mode
 	if eraserPreviewActive {
-		// render circle
-		paint.FillShape(ops, circleColor, circle)
+		// get circle data
+		circle, circleColor := previewErase()
+		// render preview circle
+		paint.FillShape(ops, circleColor, circle.Op(ops))
 	}
 }
 
-// previewErase draws a semi-transparent preview circle on the screen where the user's eraser is placed
-func previewErase(ops *op.Ops) {
+// previewErase returns data for a semi-transparent preview circle on the screen where the user's eraser is placed
+func previewErase() (clip.Ellipse, color.NRGBA) {
 	// generate preview circle (for eraser mode)
 	topLeft := image.Pt(eraserPos.Round().X-int(eraserSize), eraserPos.Round().Y-int(eraserSize))
 	bottomRight := image.Pt(eraserPos.Round().X+int(eraserSize), eraserPos.Round().Y+int(eraserSize))
-	circle := clip.Ellipse{Min: topLeft, Max: bottomRight}.Op(ops)
-	circleColor := color.NRGBA{R: 233, G: 233, B: 233, A: 128}
+	circle := clip.Ellipse{Min: topLeft, Max: bottomRight}
+	circleColor := color.NRGBA{R: 222, G: 222, B: 222, A: 128}
 	return circle, circleColor
 }
 
