@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+// disableAllModes disables all modes (draw, line, eraser...)
+// this is in one function so as to improve maintainability (little closer to single responsibility)
+// caller functions are responsible for turning back on the appropriate mode(s)
+func disableAllModes() {
+	drawMode = false
+	lineMode = false
+	eraserMode = false
+}
+
 // parseHexColor parses 6- or 8-digit hex color strings like "#RRGGBB" or "RRGGBBAA"
 func parseHexColor(s string) (color.NRGBA, error) {
 	s = strings.TrimSpace(s)
