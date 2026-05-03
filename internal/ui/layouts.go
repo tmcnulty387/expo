@@ -80,7 +80,7 @@ func TopToolbar(th *material.Theme, lineModeBtn, eraserBtn *widget.Clickable) fu
 }
 
 // Sidebar renders a vertical palette on the left and updates the global drawColor.
-func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
+func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth, decEraser, incEraser, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// first define some standard values for gap measurements
 		sectionGapDp := 8
@@ -212,8 +212,41 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 						return btn.Layout(gtx)
 					}),
 				)
-			}),
-			)
+			}))
+
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if !eraserMode {
+					return layout.Dimensions{}
+				}
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						for decEraser.Clicked(gtx) {
+							if eraserSize > 2 {
+								eraserSize -= 2
+							}
+						}
+						btn := material.Button(th, decEraser, "-")
+						btn.TextSize = unit.Sp(14)
+						return btn.Layout(gtx)
+					}),
+					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						lbl := material.Body1(th, fmt.Sprintf("E:%.0f", float32(eraserSize)))
+						return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
+					}),
+					layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						for incEraser.Clicked(gtx) {
+							if eraserSize < 256 {
+								eraserSize += 2
+							}
+						}
+						btn := material.Button(th, incEraser, "+")
+						btn.TextSize = unit.Sp(14)
+						return btn.Layout(gtx)
+					}),
+				)
+			}))
 
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}.Layout(gtx, children...)
 		})
@@ -240,7 +273,7 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 // BottomControls returns the row of session/session code editor and width/eraser controls (will be moved to sidebar later).
 // TODO: Move all tool controls to sidebar - Rina
 // TODO: Give this a slightly darker background, same style as top/sidebars - Rina
-func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor, decEraser, incEraser, lineModeBtn, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
+func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -283,40 +316,6 @@ func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sess
 							return material.Editor(th, sessionCodeInput, "Session Code").Layout(gtx)
 						})
 					})
-				}),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if !eraserMode {
-						return layout.Dimensions{}
-					}
-					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							for decEraser.Clicked(gtx) {
-								if eraserSize > 2 {
-									eraserSize -= 2
-								}
-							}
-							btn := material.Button(th, decEraser, "-")
-							btn.TextSize = unit.Sp(14)
-							return btn.Layout(gtx)
-						}),
-						layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							lbl := material.Body1(th, fmt.Sprintf("E:%.0f", float32(eraserSize)))
-							return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
-						}),
-						layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							for incEraser.Clicked(gtx) {
-								if eraserSize < 256 {
-									eraserSize += 2
-								}
-							}
-							btn := material.Button(th, incEraser, "+")
-							btn.TextSize = unit.Sp(14)
-							return btn.Layout(gtx)
-						}),
-					)
 				}),
 			)
 		})
