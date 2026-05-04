@@ -14,7 +14,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"log"
-	"strings"
+	"net"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -25,12 +25,9 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// TODO: Command struct that can be used for CLI/GUI to communicate with its
-// Client?
-
 type Client struct {
-	host   host.Host
-	peers  []peer.ID
+	host  host.Host
+	peers []peer.ID
 }
 
 func NewClient() *Client {
@@ -40,7 +37,6 @@ func NewClient() *Client {
 // CreateSession starts a new session by creating a libp2p host and returns a
 // join code that can be shared with other clients to join the session.
 func (c *Client) CreateSession() (string, error) {
-	// start a libp2p node with default settings
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 	)
@@ -48,128 +44,112 @@ func (c *Client) CreateSession() (string, error) {
 		return "", err
 	}
 
-	// Build AddrInfo
-	peerInfo := peer.AddrInfo{
-		ID:    node.ID(),
-		Addrs: node.Addrs(),
-	}
-	addrs, err := peer.AddrInfoToP2pAddrs(&peerInfo)
-	if err != nil {
-		node.Close()
-		return "", err
-	}
-	log.Printf("Peer Info: %v\n", peerInfo)
-	log.Printf("Peer Addresses: %v\n", addrs)
-
-	// Encode all addresses (let libp2p handle choosing the best one)
-	// Join all multiaddr strings with "|" separator
-	var addrStrings []string
-	for _, addr := range addrs {
-		addrStrings = append(addrStrings, addr.String())
-	}
-	allAddrs := strings.Join(addrStrings, "|")
-
-	// Encode as base32 for the join code
-	joinCode := base32.StdEncoding.EncodeToString([]byte(allAddrs))
-
-	log.Printf("Join Code: %s\n", joinCode)
-	log.Printf("Encoded %d addresses\n", len(addrs))
+	log.Printf("Node created with ID %s and addresses: %v\n", node.ID(), node.Addrs())
 
 	c.host = node
 	c.peers = []peer.ID{}
 
+	joinCode, err := c.GenerateJoinCode()
+	if err != nil {
+		node.Close()
+		return "", err
+	}
+
+	log.Printf("Session created, join code: %s\n", joinCode)
 	return joinCode, nil
 }
 
-// JoinSession decodes a base32 join code and connects to the specified peer.
-// Returns the connected libp2p host for further communication.
-func (c *Client) JoinSession(joinCode string) (host.Host, error) {
-	// Decode the base32 join code
+// JoinSession decodes a join code, connects to the session creator, and sends
+// a PeerAnnounce so the creator can introduce all existing peers.
+func (c *Client) JoinSession(joinCode string) error {
 	addrBytes, err := base32.StdEncoding.DecodeString(joinCode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode join code: %w", err)
+		return fmt.Errorf("failed to decode join code: %w", err)
 	}
 
-	// Split the addresses by "|" separator
-	allAddrs := string(addrBytes)
-	addrStrings := strings.Split(allAddrs, "|")
-
-	if len(addrStrings) == 0 {
-		return nil, fmt.Errorf("no addresses found in join code")
+	ma, err := multiaddr.NewMultiaddrBytes(addrBytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse join code: %w", err)
 	}
 
-	log.Printf("Decoded %d addresses\n", len(addrStrings))
-
-	// Parse all multiaddrs and extract peer info
-	var peerInfo *peer.AddrInfo
-	var addrs []multiaddr.Multiaddr
-
-	for _, addrStr := range addrStrings {
-		addr, err := multiaddr.NewMultiaddr(addrStr)
-		if err != nil {
-			log.Printf("Warning: failed to parse address %s: %v\n", addrStr, err)
-			continue
-		}
-
-		// Extract peer info from the first valid address
-		if peerInfo == nil {
-			info, err := peer.AddrInfoFromP2pAddr(addr)
-			if err != nil {
-				log.Printf("Warning: failed to extract peer info from %s: %v\n", addrStr, err)
-				continue
-			}
-			peerInfo = info
-			addrs = append(addrs, info.Addrs...)
-		} else {
-			// For subsequent addresses, just extract the address part
-			info, err := peer.AddrInfoFromP2pAddr(addr)
-			if err != nil {
-				log.Printf("Warning: failed to extract peer info from %s: %v\n", addrStr, err)
-				continue
-			}
-			addrs = append(addrs, info.Addrs...)
-		}
+	hostInfo, err := peer.AddrInfoFromP2pAddr(ma)
+	if err != nil {
+		return fmt.Errorf("failed to extract peer info from join code: %w", err)
 	}
 
-	if peerInfo == nil {
-		return nil, fmt.Errorf("failed to extract peer info from any address")
-	}
-
-	// Use all the addresses we collected
-	peerInfo.Addrs = addrs
-
-	log.Printf("Connecting to peer: %s at %v\n", peerInfo.ID, peerInfo.Addrs)
-
-	// Create a new libp2p node
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create node: %w", err)
+		return fmt.Errorf("failed to create node: %w", err)
 	}
 
-	// Add the peer to the peerstore
-	node.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.PermanentAddrTTL)
+	node.Peerstore().AddAddrs(hostInfo.ID, hostInfo.Addrs, peerstore.PermanentAddrTTL)
 
-	// Connect to the peer
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := node.Connect(ctx, *peerInfo); err != nil {
+	if err := node.Connect(ctx, *hostInfo); err != nil {
 		node.Close()
-		return nil, fmt.Errorf("failed to connect to peer: %w", err)
+		return fmt.Errorf("failed to connect to peer: %w", err)
 	}
 
-	// Verify connection
-	if node.Network().Connectedness(peerInfo.ID) != network.Connected {
+	if node.Network().Connectedness(hostInfo.ID) != network.Connected {
 		node.Close()
-		return nil, fmt.Errorf("not connected to peer after Connect call")
+		return fmt.Errorf("not connected to peer after Connect call")
 	}
-
-	log.Printf("Successfully connected to peer %s\n", peerInfo.ID)
 
 	c.host = node
-	c.peers = append(c.peers, peerInfo.ID)
+	c.peers = []peer.ID{hostInfo.ID}
 
-	return node, nil
+	// TODO: Announce ourselves so the creator introduces us to all existing peers.
+
+	log.Printf("Joined session, connected to %s\n", hostInfo.ID)
+	return nil
+}
+
+// Close shuts down the client's host.
+func (c *Client) Close() error {
+	if c.host != nil {
+		return c.host.Close()
+	}
+	return nil
+}
+
+// GenerateJoinCode produces a join code from this client's current address.
+func (c *Client) GenerateJoinCode() (string, error) {
+	if c.host == nil {
+		return "", fmt.Errorf("client not connected")
+	}
+	peerInfo := peer.AddrInfo{ID: c.host.ID(), Addrs: c.host.Addrs()}
+	addrs, err := peer.AddrInfoToP2pAddrs(&peerInfo)
+	if err != nil {
+		return "", err
+	}
+	chosen := pickWANAddr(addrs)
+	if chosen == nil {
+		return "", fmt.Errorf("no usable address found")
+	}
+	return base32.StdEncoding.EncodeToString(chosen.Bytes()), nil
+}
+
+// pickWANAddr returns the first non-loopback address from addrs, falling back
+// to the first address if all are loopback.
+func pickWANAddr(addrs []multiaddr.Multiaddr) multiaddr.Multiaddr {
+	for _, addr := range addrs {
+		ip, err := addr.ValueForProtocol(multiaddr.P_IP4)
+		if err != nil {
+			ip, err = addr.ValueForProtocol(multiaddr.P_IP6)
+			if err != nil {
+				continue
+			}
+		}
+		if parsed := net.ParseIP(ip); parsed != nil && !parsed.IsLoopback() {
+			return addr
+		}
+	}
+	if len(addrs) > 0 {
+		return addrs[0]
+	}
+	return nil
 }

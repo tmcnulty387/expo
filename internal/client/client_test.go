@@ -1,19 +1,16 @@
 package client
 
 import (
-	"encoding/base32"
-	"strings"
 	"testing"
 
-	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 func TestCreateSession(t *testing.T) {
-	c := NewClient()
-	joinCode, err := c.CreateSession()
+	client := NewClient()
+	defer client.Close()
+
+	joinCode, err := client.CreateSession()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,57 +21,31 @@ func TestCreateSession(t *testing.T) {
 }
 
 func TestJoinSession(t *testing.T) {
-	c := NewClient()
-	// Create a host that will act as the session host
-	hostNode, err := libp2p.New(
-		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"),
-	)
+	hostClient := NewClient()
+	defer hostClient.Close()
+
+	joinCode, err := hostClient.CreateSession()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer hostNode.Close()
+	t.Logf("Host join code: %s", joinCode)
 
-	// Get the host's addresses
-	peerInfo := peer.AddrInfo{
-		ID:    hostNode.ID(),
-		Addrs: hostNode.Addrs(),
-	}
-	addrs, err := peer.AddrInfoToP2pAddrs(&peerInfo)
+	joiningClient := NewClient()
+	defer joiningClient.Close()
+
+	err = joiningClient.JoinSession(joinCode)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Use all addresses (should include localhost for testing)
-	if len(addrs) == 0 {
-		t.Fatal("no addresses found")
+	if len(joiningClient.peers) == 0 {
+		t.Fatal("no peers connected")
 	}
-	t.Logf("Host addresses: %v", addrs)
 
-	// Create a join code from all addresses
-	joinCode := encodeJoinCode(addrs)
-	t.Logf("Join code: %s", joinCode)
-
-	// Now try to join using the join code
-	clientNode, err := c.JoinSession(joinCode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer clientNode.Close()
-
-	// Verify connection
-	if clientNode.Network().Connectedness(hostNode.ID()) != network.Connected {
+	hostID := joiningClient.peers[0]
+	if joiningClient.host.Network().Connectedness(hostID) != network.Connected {
 		t.Fatal("client not connected to host")
 	}
 
-	t.Logf("Successfully connected client %s to host %s", clientNode.ID(), hostNode.ID())
-}
-
-// Helper function to encode multiaddrs as a join code
-func encodeJoinCode(addrs []multiaddr.Multiaddr) string {
-	var addrStrings []string
-	for _, addr := range addrs {
-		addrStrings = append(addrStrings, addr.String())
-	}
-	allAddrs := strings.Join(addrStrings, "|")
-	return base32.StdEncoding.EncodeToString([]byte(allAddrs))
+	t.Logf("Successfully connected client %s to host %s", joiningClient.host.ID(), hostID)
 }
