@@ -1,5 +1,9 @@
 package ui
 
+/*
+Author: Rina Peshori
+*/
+
 import (
 	"fmt"
 	"image"
