@@ -1,5 +1,5 @@
-// Definitions of message info.
-
+// Package message defines the binary message format used to communicate
+// between Expo clients.
 package message
 
 import (
