@@ -12,7 +12,8 @@ import (
 )
 
 func TestCreateSession(t *testing.T) {
-	joinCode, err := CreateSession()
+	c := NewClient()
+	joinCode, err := c.CreateSession()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,6 +24,7 @@ func TestCreateSession(t *testing.T) {
 }
 
 func TestJoinSession(t *testing.T) {
+	c := NewClient()
 	// Create a host that will act as the session host
 	hostNode, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"),
@@ -53,7 +55,7 @@ func TestJoinSession(t *testing.T) {
 	t.Logf("Join code: %s", joinCode)
 
 	// Now try to join using the join code
-	clientNode, err := JoinSession(joinCode)
+	clientNode, err := c.JoinSession(joinCode)
 	if err != nil {
 		t.Fatal(err)
 	}

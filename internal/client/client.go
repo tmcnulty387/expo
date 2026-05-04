@@ -29,10 +29,17 @@ import (
 // Client?
 
 type Client struct {
-	// TODO: fields?
+	host   host.Host
+	peers  []peer.ID
 }
 
-func CreateSession() (string, error) {
+func NewClient() *Client {
+	return &Client{}
+}
+
+// CreateSession starts a new session by creating a libp2p host and returns a
+// join code that can be shared with other clients to join the session.
+func (c *Client) CreateSession() (string, error) {
 	// start a libp2p node with default settings
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
@@ -68,17 +75,15 @@ func CreateSession() (string, error) {
 	log.Printf("Join Code: %s\n", joinCode)
 	log.Printf("Encoded %d addresses\n", len(addrs))
 
-	// TODO: Keep the node running
-	if err := node.Close(); err != nil {
-		return "", err
-	}
+	c.host = node
+	c.peers = []peer.ID{}
 
 	return joinCode, nil
 }
 
 // JoinSession decodes a base32 join code and connects to the specified peer.
 // Returns the connected libp2p host for further communication.
-func JoinSession(joinCode string) (host.Host, error) {
+func (c *Client) JoinSession(joinCode string) (host.Host, error) {
 	// Decode the base32 join code
 	addrBytes, err := base32.StdEncoding.DecodeString(joinCode)
 	if err != nil {
@@ -162,6 +167,9 @@ func JoinSession(joinCode string) (host.Host, error) {
 	}
 
 	log.Printf("Successfully connected to peer %s\n", peerInfo.ID)
+
+	c.host = node
+	c.peers = append(c.peers, peerInfo.ID)
 
 	return node, nil
 }
