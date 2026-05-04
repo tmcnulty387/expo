@@ -11,7 +11,6 @@ import (
 	"gioui.org/f32"
 	"gioui.org/font/gofont"
 	"gioui.org/io/event"
-	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -27,6 +26,14 @@ type stroke struct {
 	points []f32.Point
 	col    color.NRGBA
 	width  float32
+}
+
+type textbox struct {
+	text     *widget.Editor
+	theme    *material.Theme
+	pos      f32.Point // top-left position of the textbox (relative to the drawing area)
+	size     image.Point
+	dragging bool
 }
 
 // for window title display
@@ -50,6 +57,10 @@ var (
 	drawColor                   = Black
 	strokeWidth         float32 = 4
 	strokes             []stroke
+	textboxes           []textbox
+	activeTextbox       = -1
+	tbDragOffset        f32.Point
+	insertingText       = false
 	drawMode            = true // defaults to draw state
 	lineMode            = false
 	previewActive       = false
@@ -59,6 +70,9 @@ var (
 	eraserPreviewActive = false
 	eraserPos           f32.Point
 	eraserSize          float32 = 12
+	textMode                    = false
+	fontSize            float32 = 12
+	textColor                   = Black
 )
 
 func Loop(ctx context.Context) error {
@@ -77,6 +91,8 @@ func Loop(ctx context.Context) error {
 	inactiveTh := material.NewTheme() // colour theme for "inactive" buttons
 	inactiveTh.Shaper = th.Shaper
 	inactiveTh.Palette.ContrastBg = color.NRGBA{R: 150, G: 150, B: 150, A: 255}
+	textTh := material.NewTheme() // currently selected theme for user-editable text
+	textTh.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	// colour palette setup vars (needs to be persistent across frames)
 	colorChoices := []color.NRGBA{Black, Red, Green, Blue, Yellow, Cyan, Magenta, Orange}
 	var colorBtns = make([]widget.Clickable, len(colorChoices))
@@ -91,12 +107,21 @@ func Loop(ctx context.Context) error {
 	var eraserBtn widget.Clickable
 	var decEraser widget.Clickable
 	var incEraser widget.Clickable
+	// text mode controls
+	var textBtn widget.Clickable
+	var textInput widget.Editor
+	textInput.SingleLine = false // allow for multi-line text input
+	var decFont widget.Clickable
+	var incFont widget.Clickable
+	var textPreview widget.Editor
+	textPreview.SingleLine = false
+	textPreview.ReadOnly = true
+	var insertTextBtn widget.Clickable
 
 	var ops op.Ops
 	for {
 		select {
 		case <-ctx.Done():
-			// TODO: Is any other shutdown logic required here?
 			return ctx.Err()
 		default:
 		}
@@ -142,13 +167,32 @@ func Loop(ctx context.Context) error {
 				}
 			}
 
+			for {
+				ev, ok := textInput.Update(gtx)
+				if !ok {
+					break
+				}
+				if _, ok := ev.(widget.ChangeEvent); ok {
+					// first clear all characters from preview
+					textPreview.Delete(-textPreview.Len())
+					// now update preview
+					customText := strings.TrimSpace(textInput.Text())
+					numAffected := textPreview.Insert(customText)
+					log.Println("Set custom text:", customText, " with affected characters: ", numAffected)
+				}
+			}
+
+			for insertTextBtn.Clicked(gtx) {
+				insertingText = true
+			}
+
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(TopToolbar(th, inactiveTh, &drawBtn, &lineBtn, &eraserBtn)),
+				layout.Rigid(TopToolbar(th, inactiveTh, &drawBtn, &lineBtn, &eraserBtn, &textBtn)),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						layout.Rigid(Sidebar(th, colorChoices, colorBtns, &customColorInput, &decWidth, &incWidth, &decEraser, &incEraser)),
+						layout.Rigid(Sidebar(th, textTh, colorChoices, colorBtns, &customColorInput, &textInput, &textPreview, &decWidth, &incWidth, &decEraser, &incEraser, &decFont, &incFont, &insertTextBtn)),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							draw(gtx.Ops, gtx.Source, gtx.Constraints.Max)
+							draw(gtx, textTh, &textPreview)
 							return layout.Dimensions{Size: gtx.Constraints.Max}
 						}),
 					)
@@ -156,12 +200,18 @@ func Loop(ctx context.Context) error {
 				layout.Rigid(BottomControls(th, &toggleSessionBtn, &sessionCodeInput)),
 			)
 			e.Frame(gtx.Ops)
+
+			insertingText = false
 		}
 	}
 }
 
-func draw(ops *op.Ops, source input.Source, size image.Point) {
-	// Confine the area of interest to a 100x100 rectangle.
+func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor) {
+	ops := gtx.Ops
+	source := gtx.Source
+	size := gtx.Constraints.Max
+
+	// Confine the area of interest to the whole drawing area ("whiteboard").
 	defer clip.Rect{Max: size}.Push(ops).Pop()
 
 	// Declare `tag` as being one of the targets.
@@ -169,11 +219,9 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 
 	// Process events that arrived between the last frame and this one.
 	for {
-		// TODO: I think we block here -- do we need to propagate context to
-		// this function as well?
 		ev, ok := source.Event(pointer.Filter{
 			Target: tag,
-			Kinds:  pointer.Move | pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel | pointer.Leave,
+			Kinds:  pointer.Move | pointer.Press | pointer.Drag | pointer.Release | pointer.Leave,
 		})
 		if !ok {
 			break
@@ -201,11 +249,34 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 					lineStart = e.Position
 					previewEnd = e.Position
 					log.Println("Line preview started")
-				} else { // freehand drawing
+				} else if drawMode { // freehand drawing
 					drawing = true
 					log.Println("Started Drawing")
 					// start new stroke with current drawing colour and width
 					strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth})
+				} else if textMode { // text edit
+					// check if the press hits any textbox
+					// (topmost textbox will be hit first)
+					for i := len(textboxes) - 1; i >= 0; i-- {
+						tb := &textboxes[i]
+						w, h := float32(tb.size.X), float32(tb.size.Y)
+						if w <= 0 || h <= 0 {
+							// size not measured yet, skip this textbox
+							continue
+						}
+						if e.Position.X >= tb.pos.X && e.Position.X <= tb.pos.X+w &&
+							e.Position.Y >= tb.pos.Y && e.Position.Y <= tb.pos.Y+h {
+							// update textboxes so this one is now topmost
+							t := textboxes[i]
+							textboxes = append(textboxes[:i], textboxes[i+1:]...)
+							textboxes = append(textboxes, t)
+							activeTextbox = len(textboxes) - 1
+							tbDragOffset = f32.Point{X: e.Position.X - t.pos.X, Y: e.Position.Y - t.pos.Y}
+							textboxes[activeTextbox].dragging = true
+							log.Println("Started dragging textbox")
+							break // got a hit, can stop checking
+						}
+					}
 				}
 			case pointer.Drag:
 				if eraserMode {
@@ -216,10 +287,12 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				} else if drawing {
 					s := &strokes[len(strokes)-1]
 					s.points = append(s.points, e.Position)
+				} else if textMode && activeTextbox != -1 { // dragging a textbox
+					tb := &textboxes[activeTextbox]
+					tb.pos = f32.Point{X: e.Position.X - tbDragOffset.X, Y: e.Position.Y - tbDragOffset.Y}
 				}
 			case pointer.Release:
 				if eraserMode {
-					eraserPreviewActive = false
 					log.Println("Stopped Erasing")
 				} else if lineMode && previewActive {
 					// commit straight line as a two-point stroke
@@ -231,20 +304,11 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 					s.points = append(s.points, e.Position)
 					drawing = false
 					log.Println("Stopped Drawing")
-				}
-			case pointer.Cancel:
-				if eraserMode {
-					eraserPreviewActive = false
-					log.Println("Cancelled Erasing")
-				} else if lineMode && previewActive {
-					previewActive = false
-					log.Println("Cancelled Line Preview")
-				} else if drawing {
-					if len(strokes[len(strokes)-1].points) == 1 {
-						strokes = strokes[:len(strokes)-1]
-					}
-					drawing = false
-					log.Println("Cancelled Drawing")
+				} else if textMode && activeTextbox != -1 {
+					tb := &textboxes[activeTextbox]
+					tb.dragging = false
+					activeTextbox = -1
+					log.Println("Stopped dragging textbox")
 				}
 			case pointer.Leave:
 				if eraserMode {
@@ -254,6 +318,8 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 			log.Println("Event: ", e)
 		}
 	}
+
+	// draw committed strokes
 	for _, s := range strokes {
 		if len(s.points) == 0 {
 			continue
@@ -271,6 +337,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				Width: s.width,
 			}.Op())
 	}
+
 	// render preview line (for straight-line mode)
 	if previewActive {
 		var p clip.Path
@@ -285,6 +352,7 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 				Width: strokeWidth,
 			}.Op())
 	}
+
 	// preview for eraser mode
 	if eraserPreviewActive {
 		// get circle data
@@ -292,6 +360,38 @@ func draw(ops *op.Ops, source input.Source, size image.Point) {
 		// render preview circle
 		paint.FillShape(ops, circleColor, circle.Op(ops))
 	}
+
+	// insert any new textboxes
+	if insertingText {
+		previewText := textPreview.Text()
+		if previewText != "" {
+			newTB := new(widget.Editor)
+			newTB.SingleLine = false
+			newTB.Insert(previewText)
+			// place roughly in drawing area's center
+			pos := f32.Point{X: float32(size.X) / 2, Y: float32(size.Y) / 2}
+			textboxes = append(textboxes, textbox{text: newTB, theme: textTh, pos: pos})
+			log.Println("Inserted textbox with text: ", previewText)
+		}
+	}
+
+	// render textboxes (basic rendering using material.Editor at stored positions)
+	for i := range textboxes {
+		tb := &textboxes[i]
+		// push the textbox insert operation to the ops stack, with a position offset of the textbox's pos
+		call := op.Offset(image.Point{X: tb.pos.Round().X, Y: tb.pos.Round().Y}).Push(ops)
+		dims := material.Editor(tb.theme, tb.text, "").Layout(gtx) // get dimensions of the textbox
+		tb.size = dims.Size                                        // save dimensions as textbox size in struct
+		call.Pop()
+	}
+
+	// must refresh event space constantly to allow for nice dragging
+	event.Op(ops, tag)
+}
+
+// textboxHit checks if the current cursor position is above a textbox, returns index of first hit
+func textboxHit() int {
+	return -1 // TODO
 }
 
 // previewErase returns data for a semi-transparent preview circle on the screen where the user's eraser is placed
