@@ -29,9 +29,9 @@ const (
 	EchoKind int32 = iota
 	StrokeKind
 	EraseKind
-	PeerAnnounceKind     // Sent by a joining peer to the session leader.
-	PeerIntroductionKind // Sent by the session leader to introduce a peer to the rest of the session.
-	PeerListKind         // Sent by the session leader to a joining peer, containing the list of peers already in the session.
+	PeerAnnounceKind     // Sent by a joining peer to the session creator.
+	PeerIntroductionKind // Sent by the session creator to introduce a peer to the rest of the session.
+	PeerListKind         // Sent by the session creator to a joining peer, containing the list of peers already in the session.
 )
 
 // Test message type.
