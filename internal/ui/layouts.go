@@ -14,8 +14,21 @@ import (
 	"gioui.org/widget/material"
 )
 
+// constraint constants
+const minSize = 1
+const maxSize = 64
+
+// sizing constants
+const gapDp = 4
+const swatchDp = 20
+const sectionGapDp = 8
+const insetDp = 6
+const buttonTextDp = 8
+const cornerRadiusDp = 6
+const maxWidthDp = 125
+
 // TopToolbar returns a widget that renders the top toolbar with mode toggles (will later be tool selection bar).
-func TopToolbar(th *material.Theme, inactiveTh *material.Theme, drawBtn, lineBtn, eraserBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
+func TopToolbar(th *material.Theme, inactiveTh *material.Theme, drawBtn, lineBtn, eraserBtn, textBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// Record the content ops (operators - buttons, etc.) so we can draw background/border behind it
 		rec := op.Record(gtx.Ops)
@@ -45,6 +58,20 @@ func TopToolbar(th *material.Theme, inactiveTh *material.Theme, drawBtn, lineBtn
 						theme = inactiveTh
 					}
 					btn := material.Button(theme, lineBtn, "Line")
+					btn.TextSize = unit.Sp(12)
+					return btn.Layout(gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					for textBtn.Clicked(gtx) {
+						disableAllModes()
+						textMode = true
+					}
+					theme := th
+					if !textMode {
+						theme = inactiveTh
+					}
+					btn := material.Button(theme, textBtn, "Text")
 					btn.TextSize = unit.Sp(12)
 					return btn.Layout(gtx)
 				}),
@@ -85,14 +112,14 @@ func TopToolbar(th *material.Theme, inactiveTh *material.Theme, drawBtn, lineBtn
 }
 
 // Sidebar renders a vertical palette on the left and updates global settings like drawColor.
-func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, customEditor *widget.Editor, decWidth, incWidth, decEraser, incEraser *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
+func Sidebar(
+	th, textTh *material.Theme,
+	palette []color.NRGBA, colorBtns []widget.Clickable,
+	customEditor, textEditor, textPreview *widget.Editor,
+	decWidth, incWidth, decEraser, incEraser, decFont, incFont, insertTextBtn *widget.Clickable,
+) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		// first define some standard values for gap measurements
-		sectionGapDp := 8
 		// compact grid: target 4 swatches per row
-		swatchDp := 20
-		gapDp := 4
-		insetDp := 6
 		itemsPerRow := 4
 		totalDp := swatchDp*itemsPerRow + gapDp*(itemsPerRow-1) + insetDp*2
 		gtx.Constraints.Min.X = gtx.Dp(unit.Dp(totalDp))
@@ -230,6 +257,11 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 				children = append(children, gap, strokeLbl, strokeButtons)
 			}
 
+			// display Text Settings if needed for current tool
+			if textMode {
+				children = append(children, displayTextSettings(th, textTh, palette, colorBtns, textEditor, customEditor, textPreview, decFont, incFont, insertTextBtn)...)
+			}
+
 			// display Eraser Size selector if needed for current tool
 			if eraserMode {
 				gap := layout.Rigid(layout.Spacer{Height: unit.Dp(sectionGapDp)}.Layout)
@@ -243,8 +275,8 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							for decEraser.Clicked(gtx) {
-								if strokeWidth > 1 {
-									strokeWidth -= 1
+								if eraserSize > 1 {
+									eraserSize -= 1
 								}
 							}
 							btn := material.Button(th, decEraser, "-")
@@ -258,8 +290,8 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 						layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							for incEraser.Clicked(gtx) {
-								if strokeWidth < 64 {
-									strokeWidth += 1
+								if eraserSize < 64 {
+									eraserSize += 1
 								}
 							}
 							btn := material.Button(th, incEraser, "+")
@@ -296,7 +328,6 @@ func Sidebar(th *material.Theme, palette []color.NRGBA, colorBtns []widget.Click
 }
 
 // BottomControls returns the row of session/session code editor.
-// TODO: Give this a slightly darker background, same style as top/sidebars - Rina
 func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// Record the content ops (operators - buttons, etc.) so we can draw background/border behind it
@@ -365,4 +396,100 @@ func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sess
 		call.Add(gtx.Ops)
 		return dims
 	}
+}
+
+func displayTextSettings(th, textTh *material.Theme, palette []color.NRGBA, colorBtns []widget.Clickable, textEditor, customEditor, textPreview *widget.Editor, decFont, incFont, insertTextBtn *widget.Clickable,
+) []layout.FlexChild {
+	widgets := make([]layout.FlexChild, 0)
+
+	gap := layout.Rigid(layout.Spacer{Height: unit.Dp(sectionGapDp)}.Layout)
+
+	textLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		textLbl := material.Body1(th, "Text:")
+		return layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, textLbl.Layout)
+	})
+
+	textEditorLayout := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				borderColor := Gray
+				if gtx.Source.Focused(textEditor) {
+					borderColor = Blue
+				}
+				border := widget.Border{
+					Color:        borderColor,
+					Width:        unit.Dp(1),
+					CornerRadius: unit.Dp(cornerRadiusDp),
+				}
+				return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(maxWidthDp)) // constrain size of text input box
+						return material.Editor(th, textEditor, "Enter text").Layout(gtx)
+					})
+				})
+			}),
+		)
+	})
+
+	fontSizeLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		fontSizeLbl := material.Body1(th, "Font Size:")
+		return layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, fontSizeLbl.Layout)
+	})
+
+	fontSizeButtons := getIncrementButtons(th, decFont, incFont, &fontSize)
+
+	previewLbl := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		fontSizeLbl := material.Body1(th, "Preview:")
+		return layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, fontSizeLbl.Layout)
+	})
+
+	preview := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Max.X = gtx.Dp(unit.Dp(maxWidthDp)) // constrain size of text input box
+				return material.Editor(textTh, textPreview, "").Layout(gtx)
+			}),
+		)
+	})
+
+	btn := material.Button(th, insertTextBtn, "Insert Text")
+	btn.TextSize = unit.Sp(14)
+	insertBtn := layout.Rigid(func(gtx layout.Context) layout.Dimensions { return btn.Layout(gtx) })
+
+	widgets = append(widgets, textLbl, textEditorLayout, gap, fontSizeLbl, fontSizeButtons, gap, previewLbl, preview, gap, insertBtn)
+
+	return widgets
+}
+
+func getIncrementButtons(th *material.Theme, decBtn, incBtn *widget.Clickable, updateVar *float32) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				for decBtn.Clicked(gtx) {
+					if *updateVar > minSize {
+						*updateVar -= 1
+					}
+				}
+				btn := material.Button(th, decBtn, "-")
+				btn.TextSize = unit.Sp(buttonTextDp)
+				return btn.Layout(gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(gapDp)}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				lbl := material.Body1(th, fmt.Sprintf("%.0f", *updateVar))
+				return layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, lbl.Layout)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(gapDp)}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				for incBtn.Clicked(gtx) {
+					if *updateVar < maxSize {
+						*updateVar += 1
+					}
+				}
+				btn := material.Button(th, incBtn, "+")
+				btn.TextSize = unit.Sp(buttonTextDp)
+				return btn.Layout(gtx)
+			}),
+		)
+	})
 }
