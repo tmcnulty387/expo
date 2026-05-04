@@ -33,6 +33,34 @@ func TestMessagesWriteRead(t *testing.T) {
 		&Echo{Text: "Hello, World!"},
 		&Echo{Text: ""},
 		&Echo{},
+		&Stroke{
+			StrokeID: 12345,
+			Points: []Point{
+				{X: 10.5, Y: 20.3},
+				{X: 15.7, Y: 25.9},
+				{X: 30.1, Y: 40.8},
+			},
+			Color: Color{R: 255, G: 128, B: 64, A: 255},
+			Width: 4.5,
+		},
+		&Stroke{
+			StrokeID: 67890,
+			Points: []Point{
+				{X: 0.0, Y: 0.0},
+				{X: 100.0, Y: 100.0},
+			},
+			Color: Color{R: 0, G: 0, B: 0, A: 255},
+			Width: 1.0,
+		},
+		&Stroke{
+			StrokeID: 99999,
+			Points:   []Point{{X: 50.0, Y: 50.0}},
+			Color:    Color{R: 255, G: 0, B: 0, A: 255},
+			Width:    10.0,
+		},
+		&Erase{StrokeID: 12345},
+		&Erase{StrokeID: 0},
+		&Erase{StrokeID: -1},
 	} {
 		testMessage(t, message)
 	}
