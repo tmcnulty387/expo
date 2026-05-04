@@ -29,6 +29,9 @@ const (
 	EchoKind int32 = iota
 	StrokeKind
 	EraseKind
+	PeerAnnounceKind     // Sent by a joining peer to the session leader.
+	PeerIntroductionKind // Sent by the session leader to introduce a peer to the rest of the session.
+	PeerListKind         // Sent by the session leader to a joining peer, containing the list of peers already in the session.
 )
 
 // Test message type.
@@ -218,6 +221,152 @@ func (e *Erase) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// marshalAddrs encodes a string slice as: NumAddrs(uint32) + for each: Len(uint32) + bytes.
+func marshalAddrs(addrs []string) []byte {
+	size := 4
+	for _, a := range addrs {
+		size += 4 + len(a)
+	}
+	data := make([]byte, size)
+	offset := 0
+	ByteOrder.PutUint32(data[offset:], uint32(len(addrs)))
+	offset += 4
+	for _, a := range addrs {
+		ByteOrder.PutUint32(data[offset:], uint32(len(a)))
+		offset += 4
+		copy(data[offset:], a)
+		offset += len(a)
+	}
+	return data
+}
+
+func unmarshalAddrs(data []byte) ([]string, error) {
+	if len(data) < 4 {
+		return nil, errors.New("addr data too short")
+	}
+	numAddrs := int(ByteOrder.Uint32(data))
+	offset := 4
+	addrs := make([]string, numAddrs)
+	for i := range addrs {
+		if offset+4 > len(data) {
+			return nil, errors.New("addr data truncated")
+		}
+		addrLen := int(ByteOrder.Uint32(data[offset:]))
+		offset += 4
+		if offset+addrLen > len(data) {
+			return nil, errors.New("addr data truncated")
+		}
+		addrs[i] = string(data[offset : offset+addrLen])
+		offset += addrLen
+	}
+	if offset != len(data) {
+		return nil, errors.New("trailing data after addrs")
+	}
+	return addrs, nil
+}
+
+// PeerAnnounce is sent by a joining peer to the session creator.
+// Addrs holds the joining peer's p2p multiaddrs (each includes the peer ID).
+type PeerAnnounce struct {
+	Addrs []string
+}
+
+func (_ *PeerAnnounce) Kind() int32 { return PeerAnnounceKind }
+
+func (p *PeerAnnounce) Equals(m Message) bool {
+	other, ok := m.(*PeerAnnounce)
+	if !ok || len(p.Addrs) != len(other.Addrs) {
+		return false
+	}
+	for i := range p.Addrs {
+		if p.Addrs[i] != other.Addrs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *PeerAnnounce) MarshalBinary() ([]byte, error) {
+	return marshalAddrs(p.Addrs), nil
+}
+
+func (p *PeerAnnounce) UnmarshalBinary(data []byte) error {
+	addrs, err := unmarshalAddrs(data)
+	if err != nil {
+		return err
+	}
+	p.Addrs = addrs
+	return nil
+}
+
+// PeerIntroduction is sent by the session creator to introduce a peer.
+// Addrs holds the introduced peer's p2p multiaddrs (each includes the peer ID).
+type PeerIntroduction struct {
+	Addrs []string
+}
+
+func (_ *PeerIntroduction) Kind() int32 { return PeerIntroductionKind }
+
+func (p *PeerIntroduction) Equals(m Message) bool {
+	other, ok := m.(*PeerIntroduction)
+	if !ok || len(p.Addrs) != len(other.Addrs) {
+		return false
+	}
+	for i := range p.Addrs {
+		if p.Addrs[i] != other.Addrs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *PeerIntroduction) MarshalBinary() ([]byte, error) {
+	return marshalAddrs(p.Addrs), nil
+}
+
+func (p *PeerIntroduction) UnmarshalBinary(data []byte) error {
+	addrs, err := unmarshalAddrs(data)
+	if err != nil {
+		return err
+	}
+	p.Addrs = addrs
+	return nil
+}
+
+// PeerList is sent by the session creator to a joining peer.
+// Addrs holds one p2p multiaddr per existing peer in the session.
+type PeerList struct {
+	Addrs []string
+}
+
+func (_ *PeerList) Kind() int32 { return PeerListKind }
+
+func (p *PeerList) Equals(m Message) bool {
+	other, ok := m.(*PeerList)
+	if !ok || len(p.Addrs) != len(other.Addrs) {
+		return false
+	}
+	for i := range p.Addrs {
+		if p.Addrs[i] != other.Addrs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *PeerList) MarshalBinary() ([]byte, error) {
+	return marshalAddrs(p.Addrs), nil
+}
+
+func (p *PeerList) UnmarshalBinary(data []byte) error {
+	addrs, err := unmarshalAddrs(data)
+	if err != nil {
+		return err
+	}
+	p.Addrs = addrs
+	return nil
+}
+
 type Header struct {
 	Kind   int32
 	Length int32
@@ -278,6 +427,12 @@ func Read(r io.Reader) (message Message, err error) {
 		message = &Stroke{}
 	case EraseKind:
 		message = &Erase{}
+	case PeerAnnounceKind:
+		message = &PeerAnnounce{}
+	case PeerIntroductionKind:
+		message = &PeerIntroduction{}
+	case PeerListKind:
+		message = &PeerList{}
 	default:
 		return nil, errors.New("Unknown message kind")
 	}
