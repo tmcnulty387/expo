@@ -5,7 +5,9 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"math"
 	"strings"
+	"unicode/utf8"
 
 	"gioui.org/app"
 	"gioui.org/f32"
@@ -237,6 +239,18 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				} else {
 					eraserPreviewActive = false
 				}
+				hit := false
+				if textMode {
+					// if hovering over a textbox, switch cursor to indicate draggable
+					idx := textboxHit(e.Position.X, e.Position.Y)
+					if idx != -1 {
+						pointer.CursorGrab.Add(ops)
+						hit = true
+					}
+				}
+				if !hit {
+					pointer.CursorDefault.Add(ops)
+				}
 			case pointer.Press:
 				if eraserMode { // eraser
 					eraserPreviewActive = true
@@ -257,25 +271,17 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				} else if textMode { // text edit
 					// check if the press hits any textbox
 					// (topmost textbox will be hit first)
-					for i := len(textboxes) - 1; i >= 0; i-- {
-						tb := &textboxes[i]
-						w, h := float32(tb.size.X), float32(tb.size.Y)
-						if w <= 0 || h <= 0 {
-							// size not measured yet, skip this textbox
-							continue
-						}
-						if e.Position.X >= tb.pos.X && e.Position.X <= tb.pos.X+w &&
-							e.Position.Y >= tb.pos.Y && e.Position.Y <= tb.pos.Y+h {
-							// update textboxes so this one is now topmost
-							t := textboxes[i]
-							textboxes = append(textboxes[:i], textboxes[i+1:]...)
-							textboxes = append(textboxes, t)
-							activeTextbox = len(textboxes) - 1
-							tbDragOffset = f32.Point{X: e.Position.X - t.pos.X, Y: e.Position.Y - t.pos.Y}
-							textboxes[activeTextbox].dragging = true
-							log.Println("Started dragging textbox")
-							break // got a hit, can stop checking
-						}
+					idx := textboxHit(e.Position.X, e.Position.Y)
+					if idx != -1 {
+						// update textboxes so this one is now topmost
+						t := textboxes[idx]
+						textboxes = append(textboxes[:idx], textboxes[idx+1:]...)
+						textboxes = append(textboxes, t)
+						activeTextbox = len(textboxes) - 1
+						tbDragOffset = f32.Point{X: e.Position.X - t.pos.X, Y: e.Position.Y - t.pos.Y}
+						textboxes[activeTextbox].dragging = true
+						pointer.CursorGrabbing.Add(ops)
+						log.Println("Started dragging textbox")
 					}
 				}
 			case pointer.Drag:
@@ -288,6 +294,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					s := &strokes[len(strokes)-1]
 					s.points = append(s.points, e.Position)
 				} else if textMode && activeTextbox != -1 { // dragging a textbox
+					pointer.CursorGrabbing.Add(ops)
 					tb := &textboxes[activeTextbox]
 					tb.pos = f32.Point{X: e.Position.X - tbDragOffset.X, Y: e.Position.Y - tbDragOffset.Y}
 				}
@@ -308,6 +315,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					tb := &textboxes[activeTextbox]
 					tb.dragging = false
 					activeTextbox = -1
+					pointer.CursorDefault.Add(ops)
 					log.Println("Stopped dragging textbox")
 				}
 			case pointer.Leave:
@@ -367,11 +375,16 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 		if previewText != "" {
 			newTB := new(widget.Editor)
 			newTB.SingleLine = false
+			newTB.ReadOnly = true
 			newTB.Insert(previewText)
 			// place roughly in drawing area's center
 			pos := f32.Point{X: float32(size.X) / 2, Y: float32(size.Y) / 2}
-			textboxes = append(textboxes, textbox{text: newTB, theme: textTh, pos: pos})
-			log.Println("Inserted textbox with text: ", previewText)
+			tb := textbox{text: newTB, theme: textTh, pos: pos}
+			// give textbox a size (heuristics-calculated)
+			computedWidth, computedHeight := getTextboxSize(&gtx, &tb)
+			tb.size = image.Point{X: computedWidth, Y: computedHeight}
+			textboxes = append(textboxes, tb)
+			log.Println("Inserted textbox with text: ", previewText, " and size: ", tb.size.X, ", ", tb.size.Y)
 		}
 	}
 
@@ -380,8 +393,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 		tb := &textboxes[i]
 		// push the textbox insert operation to the ops stack, with a position offset of the textbox's pos
 		call := op.Offset(image.Point{X: tb.pos.Round().X, Y: tb.pos.Round().Y}).Push(ops)
-		dims := material.Editor(tb.theme, tb.text, "").Layout(gtx) // get dimensions of the textbox
-		tb.size = dims.Size                                        // save dimensions as textbox size in struct
+		material.Editor(tb.theme, tb.text, "").Layout(gtx) // get dimensions of the textbox
 		call.Pop()
 	}
 
@@ -389,9 +401,71 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 	event.Op(ops, tag)
 }
 
+// getTextboxSize computes a natural width & height for a given textbox (heuristics-based)
+func getTextboxSize(gtx *layout.Context, tb *textbox) (int, int) {
+	maxAllowedWidth := min(gtx.Constraints.Max.X, 400)
+
+	approxCharWidth := float32(fontSize) * 0.6
+	paddingX := 8
+	paddingY := 8
+
+	var textStr string
+	if tb.text != nil {
+		textStr = tb.text.Text()
+	}
+	lines := strings.Split(textStr, "\n")
+
+	// determine the longest line in runes to estimate a natural width
+	longestRunes := 0
+	for _, ln := range lines {
+		rc := utf8.RuneCountInString(ln)
+		if rc > longestRunes {
+			longestRunes = rc
+		}
+	}
+	if longestRunes < 1 {
+		longestRunes = 1
+	}
+
+	initialWidth := max(int(float32(longestRunes)*approxCharWidth)+paddingX, 20)
+	computedWidth := min(initialWidth, maxAllowedWidth)
+
+	// now compute wrapped lines using the computed width
+	charsPerLine := int(math.Max(1, math.Floor(float64(computedWidth)/float64(approxCharWidth))))
+	totalLines := 0
+	for _, ln := range lines {
+		runeCount := utf8.RuneCountInString(ln)
+		if runeCount == 0 {
+			totalLines += 1
+			continue
+		}
+		wraps := int(math.Ceil(float64(runeCount) / float64(charsPerLine)))
+		totalLines += wraps
+	}
+	if totalLines < 1 {
+		totalLines = 1
+	}
+	lineHeight := int(float32(fontSize) * 1.4)
+	computedHeight := min(max(totalLines*lineHeight+paddingY, 20), gtx.Constraints.Max.Y)
+
+	return computedWidth, computedHeight
+}
+
 // textboxHit checks if the current cursor position is above a textbox, returns index of first hit
-func textboxHit() int {
-	return -1 // TODO
+func textboxHit(currX, currY float32) int {
+	for i := len(textboxes) - 1; i >= 0; i-- {
+		tb := &textboxes[i]
+		w, h := float32(tb.size.X), float32(tb.size.Y)
+		if w <= 0 || h <= 0 {
+			// size not measured yet, skip this textbox
+			continue
+		}
+		if currX >= tb.pos.X && currX <= tb.pos.X+w &&
+			currY >= tb.pos.Y && currY <= tb.pos.Y+h {
+			return i
+		}
+	}
+	return -1
 }
 
 // previewErase returns data for a semi-transparent preview circle on the screen where the user's eraser is placed
