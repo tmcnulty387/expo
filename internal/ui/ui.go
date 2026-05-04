@@ -1,5 +1,9 @@
 package ui
 
+/*
+Author: Rina Peshori
+*/
+
 import (
 	"context"
 	"image"
@@ -19,6 +23,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/text"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
@@ -32,7 +37,7 @@ type stroke struct {
 
 type textbox struct {
 	text     *widget.Editor
-	theme    *material.Theme
+	theme    material.Theme
 	pos      f32.Point // top-left position of the textbox (relative to the drawing area)
 	size     image.Point
 	dragging bool
@@ -203,7 +208,10 @@ func Loop(ctx context.Context) error {
 			)
 			e.Frame(gtx.Ops)
 
+			// reset necessary variables every frame
 			insertingText = false
+			textTh.Fg = textColor
+			textTh.TextSize = unit.Sp(fontSize)
 		}
 	}
 }
@@ -379,7 +387,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 			newTB.Insert(previewText)
 			// place roughly in drawing area's center
 			pos := f32.Point{X: float32(size.X) / 2, Y: float32(size.Y) / 2}
-			tb := textbox{text: newTB, theme: textTh, pos: pos}
+			tb := textbox{text: newTB, theme: *textTh, pos: pos}
 			// give textbox a size (heuristics-calculated)
 			computedWidth, computedHeight := getTextboxSize(&gtx, &tb)
 			tb.size = image.Point{X: computedWidth, Y: computedHeight}
@@ -393,7 +401,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 		tb := &textboxes[i]
 		// push the textbox insert operation to the ops stack, with a position offset of the textbox's pos
 		call := op.Offset(image.Point{X: tb.pos.Round().X, Y: tb.pos.Round().Y}).Push(ops)
-		material.Editor(tb.theme, tb.text, "").Layout(gtx) // get dimensions of the textbox
+		material.Editor(&tb.theme, tb.text, "").Layout(gtx) // get dimensions of the textbox
 		call.Pop()
 	}
 
