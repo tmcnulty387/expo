@@ -26,6 +26,7 @@ const insetDp = 6
 const buttonTextDp = 8
 const cornerRadiusDp = 6
 const maxWidthDp = 125
+const maxHeightDp = 60
 
 // TopToolbar returns a widget that renders the top toolbar with mode toggles (will later be tool selection bar).
 func TopToolbar(th *material.Theme, inactiveTh *material.Theme, drawBtn, lineBtn, eraserBtn, textBtn *widget.Clickable) func(gtx layout.Context) layout.Dimensions {
@@ -423,7 +424,9 @@ func displayTextSettings(th, textTh *material.Theme, palette []color.NRGBA, colo
 				}
 				return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(insetDp)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(maxWidthDp)) // constrain size of text input box
+						// constrain size of text input box
+						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(maxWidthDp))
+						gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(maxHeightDp))
 						return material.Editor(th, textEditor, "Enter text").Layout(gtx)
 					})
 				})
@@ -446,7 +449,9 @@ func displayTextSettings(th, textTh *material.Theme, palette []color.NRGBA, colo
 	preview := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Max.X = gtx.Dp(unit.Dp(maxWidthDp)) // constrain size of text input box
+				// constrain size of text preview box
+				gtx.Constraints.Max.X = gtx.Dp(unit.Dp(maxWidthDp))
+				gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(maxHeightDp))
 				return material.Editor(textTh, textPreview, "").Layout(gtx)
 			}),
 		)
