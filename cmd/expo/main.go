@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"iter"
 	"log"
 	"os"
 	"strings"
@@ -13,12 +14,46 @@ import (
 
 	"gioui.org/app"
 
+	"github.com/Go-20255/team-project-malloc4/internal/client"
 	"github.com/Go-20255/team-project-malloc4/internal/ui"
 )
 
 type Options struct {
 	Headless       bool
 	LaunchCommands []string
+}
+
+type Transition int
+
+const (
+	Continue Transition = iota
+	Quit
+)
+
+// Processes a command and interacts with the client.
+// Returns Transition to signal what the caller should do after processing.
+func processCommand(line string, client *client.Client) Transition {
+	pullWord, stop := iter.Pull(strings.SplitSeq(line, " "))
+	defer stop()
+	command, ok := pullWord()
+	if !ok {
+		return Continue
+	}
+	switch command {
+	case "quit":
+		return Quit
+	case "listen":
+		address, ok := pullWord()
+		if !ok {
+			fmt.Println("Usage: listen address")
+		} else {
+			// TODO: Implement
+			fmt.Println("TODO: Implement listen call")
+			_ = address
+		}
+	}
+
+	return Continue
 }
 
 // TODO: Separate out into internal/networking? Replace with CLI function?
@@ -46,14 +81,17 @@ func cli(ctx context.Context, launchCommands []string) error {
 		}
 	}()
 
+	client := client.Client{}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case line := <-lines:
-			log.Println("input: ", line)
-			switch line {
-			case "quit":
+			switch processCommand(line, &client) {
+			case Continue:
+				continue
+			case Quit:
 				return nil
 			}
 		}
