@@ -30,12 +30,14 @@ import (
 
 // stroke represents a drawn line
 type stroke struct {
+	id     int64
 	points []f32.Point
 	col    color.NRGBA
 	width  float32
 }
 
 type textbox struct {
+	id       int64
 	text     *widget.Editor
 	theme    material.Theme
 	pos      f32.Point // top-left position of the textbox (relative to the drawing area)
@@ -47,25 +49,27 @@ type textbox struct {
 const appTitle = "EXPO"
 
 var (
-	Red         = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
-	Green       = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
-	Blue        = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
-	Yellow      = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
-	Cyan        = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
-	Magenta     = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
-	Black       = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
-	White       = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	Gray        = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
-	Orange      = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
-	tag         = new(int)
-	drawing     = false
-	inSession   = false
-	sessionCode string
-	drawColor           = Black
-	strokeWidth float32 = 4
-	strokes     []stroke
-	currStroke  stroke
-	textboxes   []textbox
+	Red                 = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
+	Green               = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
+	Blue                = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
+	Yellow              = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
+	Cyan                = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
+	Magenta             = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
+	Black               = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
+	White               = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	Gray                = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
+	Orange              = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
+	tag                 = new(int)
+	nextID        int64 = 0
+	nextTextboxID int64 = 0
+	drawing             = false
+	inSession           = false
+	sessionCode   string
+	drawColor             = Black
+	strokeWidth   float32 = 4
+	strokes       []stroke
+	currStroke    stroke
+	textboxes     []textbox
 
 	activeTextbox       = -1
 	tbDragOffset        f32.Point
@@ -312,12 +316,15 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					log.Println("Stopped Erasing")
 				} else if lineMode && previewActive {
 					// commit straight line as a two-point stroke
-					strokes = append(strokes, stroke{points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth})
+					strokes = append(strokes, stroke{id: nextID, points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth})
+					nextID++
 					previewActive = false
 					// TODO: send Message
 					log.Println("Committed straight line")
 				} else if drawing {
 					currStroke.points = append(currStroke.points, e.Position)
+					currStroke.id = nextID
+					nextID++
 					strokes = append(strokes, currStroke)
 					drawing = false
 					log.Println("Stopped Drawing")
@@ -406,7 +413,8 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 			newTB.Insert(previewText)
 			// place roughly in drawing area's center
 			pos := f32.Point{X: float32(size.X) / 2, Y: float32(size.Y) / 2}
-			tb := textbox{text: newTB, theme: *textTh, pos: pos}
+			tb := textbox{id: nextTextboxID, text: newTB, theme: *textTh, pos: pos}
+			nextTextboxID++
 			// give textbox a size (heuristics-calculated)
 			computedWidth, computedHeight := getTextboxSize(&gtx, &tb)
 			tb.size = image.Point{X: computedWidth, Y: computedHeight}
