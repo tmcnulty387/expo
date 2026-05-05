@@ -182,6 +182,11 @@ func Loop(ctx context.Context, client *client.Client) error {
 						textboxes = append(textboxes, tb)
 					}
 					canvas.UpsertTextbox(msg)
+				case *message.EraseTB:
+					textboxes = slices.DeleteFunc(textboxes, func(t textbox) bool {
+						return t.id == msg.TextboxID
+					})
+					canvas.EraseTextbox(msg.TextboxID)
 				}
 			}
 			pendingMessages = pendingMessages[:0]
