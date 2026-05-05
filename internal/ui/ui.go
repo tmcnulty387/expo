@@ -95,7 +95,7 @@ var (
 	textMode                    = false
 	fontSize            float32 = 12
 
-	pendingMessages       []message.Message
+	pendingMessages       chan message.Message
 	sessionCodeSelectable widget.Selectable
 )
 
@@ -146,24 +146,43 @@ func Loop(ctx context.Context, client *client.Client) error {
 	textPreview.ReadOnly = true
 	var insertTextBtn widget.Clickable
 
+	// Receive network messages on a background thread, so that new draws from
+	// other clients aren't waiting on a window update to be rendered.
+	pendingMessages = make(chan message.Message, 32)
+	go func() {
+		for {
+			select {
+			case m := <-client.Messages:
+				pendingMessages <- m
+				window.Invalidate()
+			}
+		}
+	}()
+
 	var ops op.Ops
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case m := <-client.Messages:
-			pendingMessages = append(pendingMessages, m)
-			window.Invalidate()
 		default:
 		}
-		switch e := window.Event().(type) {
+		e := window.Event()
+		switch e := e.(type) {
 		case app.DestroyEvent:
 			return e.Err
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
 
-			for _, m := range pendingMessages {
-				switch msg := m.(type) {
+			// Render all pending network messages before handling UI updates.
+		renderPendingNetworkMessages:
+			for {
+				var msg message.Message
+				select {
+				case msg = <-pendingMessages:
+				default:
+					break renderPendingNetworkMessages
+				}
+				switch msg := msg.(type) {
 				case *message.Stroke:
 					upsertStroke(strokeFromMessage(*msg))
 					canvas.UpsertStroke(msg)
@@ -189,7 +208,6 @@ func Loop(ctx context.Context, client *client.Client) error {
 					canvas.EraseTextbox(msg.TextboxID)
 				}
 			}
-			pendingMessages = pendingMessages[:0]
 
 			for toggleSessionBtn.Clicked(gtx) {
 				if inSession {
