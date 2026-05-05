@@ -56,7 +56,7 @@ func processCommand(line string, client *client.Client) Transition {
 }
 
 // TODO: Separate out into internal/networking? Replace with CLI function?
-func cli(ctx context.Context, launchCommands []string) error {
+func cli(ctx context.Context, launchCommands []string, client *client.Client) error {
 	lines := make(chan string, len(launchCommands)+10)
 	go func() {
 		for _, command := range launchCommands {
@@ -72,15 +72,12 @@ func cli(ctx context.Context, launchCommands []string) error {
 		}
 	}()
 
-	// TODO: Remove, placeholder
-	client := client.Client{}
-
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case line := <-lines:
-			switch processCommand(line, &client) {
+			switch processCommand(line, client) {
 			case Continue:
 				continue
 			case Quit:
@@ -101,17 +98,19 @@ func run(options Options) {
 	quit := make(chan error, 1)
 	var tasks sync.WaitGroup
 
+	client := client.NewClient()
+
 	//
 	// TODO: Integrate properly into a CLI for networking? Provide channels
 	// so that the GUI can signal networking requests etc.
 	//
-	tasks.Go(func() { quit <- cli(ctx, options.LaunchCommands) })
+	tasks.Go(func() { quit <- cli(ctx, options.LaunchCommands, client) })
 
 	//
 	// Launch GUI loop.
 	//
 	if !options.Headless {
-		tasks.Go(func() { quit <- ui.Loop(ctx) })
+		tasks.Go(func() { quit <- ui.Loop(ctx, client) })
 	}
 
 	//

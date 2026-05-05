@@ -28,15 +28,11 @@ type Client struct {
 	host     host.Host
 	peers    []peer.ID
 	mu       sync.Mutex
-	Incoming chan message.Message // stream handler -> UI
-	Outgoing chan message.Message // UI -> broadcast goroutine
+	Messages chan message.Message // stream handler -> UI
 }
 
 func NewClient() *Client {
-	return &Client{
-		Incoming: make(chan message.Message, 32),
-		Outgoing: make(chan message.Message, 32),
-	}
+	return &Client{Messages: make(chan message.Message, 32)}
 }
 
 // CreateSession starts a new session by creating a libp2p host and returns a

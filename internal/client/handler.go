@@ -60,6 +60,7 @@ func (c *Client) handleStream(stream network.Stream) {
 		log.Printf("error reading message from %s: %v", stream.Conn().RemotePeer(), err)
 		return
 	}
+	// Special internal handling of some messages.
 	switch m := msg.(type) {
 	case *message.PeerAnnounce:
 		c.handlePeerAnnounce(stream.Conn().RemotePeer(), m)
@@ -67,12 +68,8 @@ func (c *Client) handleStream(stream network.Stream) {
 		c.handlePeerList(m)
 	case *message.PeerIntroduction:
 		c.handlePeerIntroduction(m)
-	case *message.Stroke, *message.Erase, *message.Textbox:
-		select {
-		case c.Incoming <- m:
-		default:
-		}
 	}
+	c.Messages <- msg
 }
 
 // handlePeerAnnounce is called on the session creator when a joiner connects.

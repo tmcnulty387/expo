@@ -26,6 +26,8 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+
+	"github.com/Go-20255/team-project-malloc4/internal/client"
 )
 
 // stroke represents a drawn line
@@ -87,7 +89,7 @@ var (
 	fontSize            float32 = 12
 )
 
-func Loop(ctx context.Context) error {
+func Loop(ctx context.Context, client *client.Client) error {
 	window := new(app.Window)
 	window.Option(app.Title(appTitle))
 
@@ -135,8 +137,14 @@ func Loop(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case m := <-client.Messages:
+			// TODO: Handle incoming message from network connections.
+			// Switch on message type to determine if useful.
+			_ = m
 		default:
 		}
+		// TODO: This current blocks on window events, but we would want to draw
+		// server events even if we don't move our mouse or whatever.
 		switch e := window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
