@@ -2,7 +2,7 @@
 
 Made as part of CSCI 541 - Concurrent and Systems Programming in Go at RIT, Spring 2026.
 
-A native, distributed digital whiteboard application.
+A decentralized digital whiteboard application.
 
 `Please see docs/Proposal.md for the detailed Project Proposal.`
 

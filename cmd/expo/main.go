@@ -3,9 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
+	"iter"
 	"log"
 	"os"
 	"strings"
@@ -13,21 +13,55 @@ import (
 
 	"gioui.org/app"
 
+	"github.com/Go-20255/team-project-malloc4/internal/client"
 	"github.com/Go-20255/team-project-malloc4/internal/ui"
 )
 
-// TODO: Separate out into internal/networking? Replace with CLI function?
-func cli(ctx context.Context) error {
-	// TODO: remove placeholder example connection attempt
-	conn, err := tls.Dial("tcp", "mail.google.com:443", nil)
-	if err != nil {
-		return err
-	}
-	log.Printf("connection: %s\n", conn.RemoteAddr())
-	defer conn.Close()
+type Options struct {
+	Headless       bool
+	LaunchCommands []string
+}
 
-	lines := make(chan string, 10)
+type Transition int
+
+const (
+	Continue Transition = iota
+	Quit
+)
+
+// Processes a command and interacts with the client.
+// Returns Transition to signal what the caller should do after processing.
+func processCommand(line string, client *client.Client) Transition {
+	pullWord, stop := iter.Pull(strings.SplitSeq(line, " "))
+	defer stop()
+	command, ok := pullWord()
+	if !ok {
+		return Continue
+	}
+	switch command {
+	case "quit":
+		return Quit
+	case "listen":
+		address, ok := pullWord()
+		if !ok {
+			fmt.Println("Usage: listen address")
+		} else {
+			// TODO: Implement
+			fmt.Println("TODO: Implement listen call")
+			_ = address
+		}
+	}
+
+	return Continue
+}
+
+// TODO: Separate out into internal/networking? Replace with CLI function?
+func cli(ctx context.Context, launchCommands []string) error {
+	lines := make(chan string, len(launchCommands)+10)
 	go func() {
+		for _, command := range launchCommands {
+			lines <- strings.TrimSpace(command)
+		}
 		scanner := bufio.NewScanner(os.Stdin)
 		for {
 			fmt.Print("> ")
@@ -38,14 +72,18 @@ func cli(ctx context.Context) error {
 		}
 	}()
 
+	// TODO: Remove, placeholder
+	client := client.Client{}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case line := <-lines:
-			log.Println("input: ", line)
-			switch line {
-			case "quit":
+			switch processCommand(line, &client) {
+			case Continue:
+				continue
+			case Quit:
 				return nil
 			}
 		}
@@ -56,7 +94,7 @@ func cli(ctx context.Context) error {
 // Should be ran in a goroutine to accomodate gioui requirements.
 // This function does not return, but will call os.Exit directly to terminate
 // the program.
-func run(headless bool) {
+func run(options Options) {
 	exitCode := 0
 	ctx, cancel := context.WithCancel(context.Background())
 	// Tasks should write to this channel to signal that the client should quit.
@@ -67,12 +105,12 @@ func run(headless bool) {
 	// TODO: Integrate properly into a CLI for networking? Provide channels
 	// so that the GUI can signal networking requests etc.
 	//
-	tasks.Go(func() { quit <- cli(ctx) })
+	tasks.Go(func() { quit <- cli(ctx, options.LaunchCommands) })
 
 	//
 	// Launch GUI loop.
 	//
-	if !headless {
+	if !options.Headless {
 		tasks.Go(func() { quit <- ui.Loop(ctx) })
 	}
 
@@ -91,11 +129,20 @@ func run(headless bool) {
 }
 
 func main() {
-	var headless bool
-	flag.BoolVar(&headless, "headless", false, "Launch without GUI")
+	var options Options
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "expo - A decentralized digital whiteboard application.")
+
+		fmt.Fprintln(os.Stderr, "\nUsage:")
+		flag.PrintDefaults()
+		fmt.Fprintln(os.Stderr, "\nArguments will be provided as launch commands to the command-line interface.")
+	}
+	flag.BoolVar(&options.Headless, "headless", false, "Launch without GUI")
 	flag.Parse()
 
-	go run(headless)
+	options.LaunchCommands = flag.Args()
+
+	go run(options)
 
 	app.Main()
 }
