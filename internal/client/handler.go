@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Go-20255/team-project-malloc4/internal/canvas"
 	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -60,16 +61,23 @@ func (c *Client) handleStream(stream network.Stream) {
 		log.Printf("error reading message from %s: %v", stream.Conn().RemotePeer(), err)
 		return
 	}
-	// Special internal handling of some messages.
+	// Peer-management messages are handled internally and must not reach the UI.
 	switch m := msg.(type) {
 	case *message.PeerAnnounce:
 		c.handlePeerAnnounce(stream.Conn().RemotePeer(), m)
+		return
 	case *message.PeerList:
 		c.handlePeerList(m)
+		return
 	case *message.PeerIntroduction:
 		c.handlePeerIntroduction(m)
+		return
 	}
-	c.Messages <- msg
+	select {
+	case c.Messages <- msg:
+	default:
+		log.Printf("Messages channel full, dropping %T from %s", msg, stream.Conn().RemotePeer())
+	}
 }
 
 // handlePeerAnnounce is called on the session creator when a joiner connects.
@@ -98,6 +106,13 @@ func (c *Client) handlePeerAnnounce(joinerID peer.ID, ann *message.PeerAnnounce)
 
 	if err := c.SendMessage(joinerID, &message.PeerList{Addrs: peerAddrs}); err != nil {
 		log.Printf("failed to send peer list to %s: %v", joinerID, err)
+	}
+
+	msgs := canvas.Snapshot()
+	for _, msg := range msgs {
+		if err := c.SendMessage(joinerID, msg); err != nil {
+			log.Printf("failed to send canvas snapshot message to %s: %v", joinerID, err)
+		}
 	}
 
 	joinerInfo := peer.AddrInfo{ID: joinerID, Addrs: c.host.Peerstore().Addrs(joinerID)}
@@ -158,14 +173,62 @@ func (c *Client) handlePeerIntroduction(intro *message.PeerIntroduction) {
 	}
 }
 
-// connectToPeer connects to a peer and adds it to the peer list.
+// connectToPeer attempts a direct connection, then falls back to a circuit
+// relay through the session creator if direct fails.
 func (c *Client) connectToPeer(info *peer.AddrInfo) {
 	c.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := c.host.Connect(ctx, *info); err != nil {
-		log.Printf("failed to connect to peer %s: %v", info.ID, err)
+	if err := c.host.Connect(ctx, *info); err == nil {
+		log.Printf("Connected to peer %s (direct)", info.ID)
+		return
+	} else {
+		log.Printf("Direct connect to %s failed: %v; trying relay", info.ID, err)
+	}
+
+	if c.relayPeer == "" {
+		log.Printf("No relay peer configured, giving up on %s", info.ID)
 		return
 	}
-	log.Printf("Connected to peer %s", info.ID)
+
+	relayAddrs := c.host.Peerstore().Addrs(c.relayPeer)
+	circuitAddrs := buildCircuitAddrs(c.relayPeer, relayAddrs, info.ID)
+	if len(circuitAddrs) == 0 {
+		log.Printf("Could not build relay addrs for %s", info.ID)
+		return
+	}
+
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel2()
+	relayedInfo := peer.AddrInfo{ID: info.ID, Addrs: circuitAddrs}
+	if err := c.host.Connect(ctx2, relayedInfo); err != nil {
+		log.Printf("Relay connect to %s failed: %v", info.ID, err)
+		return
+	}
+	log.Printf("Connected to peer %s (via relay %s)", info.ID, c.relayPeer)
+}
+
+// buildCircuitAddrs constructs circuit relay multiaddrs for targetID routed
+// through the relay node at relayID/relayAddrs. One addr is produced per
+// relay transport address.
+func buildCircuitAddrs(relayID peer.ID, relayAddrs []multiaddr.Multiaddr, targetID peer.ID) []multiaddr.Multiaddr {
+	relayP2P, err := multiaddr.NewMultiaddr("/p2p/" + relayID.String())
+	if err != nil {
+		return nil
+	}
+	circuit, err := multiaddr.NewMultiaddr("/p2p-circuit")
+	if err != nil {
+		return nil
+	}
+	targetP2P, err := multiaddr.NewMultiaddr("/p2p/" + targetID.String())
+	if err != nil {
+		return nil
+	}
+
+	addrs := make([]multiaddr.Multiaddr, 0, len(relayAddrs))
+	for _, addr := range relayAddrs {
+		addrs = append(addrs, addr.Encapsulate(relayP2P).Encapsulate(circuit).Encapsulate(targetP2P))
+	}
+	return addrs
 }

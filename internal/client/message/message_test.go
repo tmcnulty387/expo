@@ -64,6 +64,14 @@ func TestMessagesWriteRead(t *testing.T) {
 		&Textbox{TextboxID: 1, X: 100.0, Y: 200.5, FontSize: 14.0, Color: Color{R: 255, G: 128, B: 64, A: 255}, Text: "Hello, World!"},
 		&Textbox{TextboxID: 2, X: 0.0, Y: 0.0, FontSize: 12.0, Color: Color{R: 0, G: 0, B: 0, A: 255}, Text: ""},
 		&Textbox{TextboxID: 3, X: 50.0, Y: 75.0, FontSize: 24.0, Color: Color{R: 255, G: 0, B: 0, A: 255}, Text: "multi\nline\ntext"},
+		&PeerAnnounce{Addr: "/ip4/1.2.3.4/tcp/4001/p2p/QmYyQSo1c1Ym7orWxLYvCrzRX5All4KXFwxR4XB5Ce4ony"},
+		&PeerAnnounce{Addr: ""},
+		&PeerIntroduction{Addrs: []string{"/ip4/1.2.3.4/tcp/4001/p2p/QmYyQSo1c1Ym7orWxLYvCrzRX5All4KXFwxR4XB5Ce4ony"}},
+		&PeerIntroduction{Addrs: []string{}},
+		&PeerIntroduction{Addrs: []string{"/ip4/1.2.3.4/tcp/4001/p2p/QmA", "/ip4/5.6.7.8/tcp/4001/p2p/QmB"}},
+		&PeerList{Addrs: []string{"/ip4/1.2.3.4/tcp/4001/p2p/QmYyQSo1c1Ym7orWxLYvCrzRX5All4KXFwxR4XB5Ce4ony"}},
+		&PeerList{Addrs: []string{}},
+		&PeerList{Addrs: []string{"/ip4/1.2.3.4/tcp/4001/p2p/QmA", "/ip4/5.6.7.8/tcp/4001/p2p/QmB"}},
 	} {
 		testMessage(t, message)
 	}

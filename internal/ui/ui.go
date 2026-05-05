@@ -10,6 +10,8 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"math/rand/v2"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -27,7 +29,9 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"github.com/Go-20255/team-project-malloc4/internal/canvas"
 	"github.com/Go-20255/team-project-malloc4/internal/client"
+	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 )
 
 // stroke represents a drawn line
@@ -51,19 +55,23 @@ type textbox struct {
 const appTitle = "EXPO"
 
 var (
-	Red                 = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
-	Green               = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
-	Blue                = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
-	Yellow              = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
-	Cyan                = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
-	Magenta             = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
-	Black               = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
-	White               = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	Gray                = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
-	Orange              = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
-	tag                 = new(int)
-	nextID        int64 = 0
-	nextTextboxID int64 = 0
+	Red     = color.NRGBA{R: 255, G: 0, B: 0, A: 255}
+	Green   = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
+	Blue    = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
+	Yellow  = color.NRGBA{R: 255, G: 255, B: 0, A: 255}
+	Cyan    = color.NRGBA{R: 0, G: 255, B: 255, A: 255}
+	Magenta = color.NRGBA{R: 255, G: 0, B: 255, A: 255}
+	Black   = color.NRGBA{R: 0, G: 0, B: 0, A: 255}
+	White   = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	Gray    = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
+	Orange  = color.NRGBA{R: 255, G: 165, B: 0, A: 255}
+	tag     = new(int)
+	// nodeID occupies the high 32 bits of every ID; the low 32 bits are a
+	// per-type counter. This makes IDs unique across peers without any
+	// coordination.
+	nodeID        int64 = int64(rand.Uint32()) << 32
+	nextID        int32 = 0
+	nextTextboxID int32 = 0
 	drawing             = false
 	inSession           = false
 	sessionCode   string
@@ -87,6 +95,9 @@ var (
 	eraserSize          float32 = 12
 	textMode                    = false
 	fontSize            float32 = 12
+
+	pendingMessages       []message.Message
+	sessionCodeSelectable widget.Selectable
 )
 
 func Loop(ctx context.Context, client *client.Client) error {
@@ -138,26 +149,56 @@ func Loop(ctx context.Context, client *client.Client) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case m := <-client.Messages:
-			// TODO: Handle incoming message from network connections.
-			// Switch on message type to determine if useful.
-			_ = m
+			pendingMessages = append(pendingMessages, m)
+			window.Invalidate()
 		default:
 		}
-		// TODO: This current blocks on window events, but we would want to draw
-		// server events even if we don't move our mouse or whatever.
 		switch e := window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
 
+			for _, m := range pendingMessages {
+				switch msg := m.(type) {
+				case *message.Stroke:
+					upsertStroke(strokeFromMessage(*msg))
+					canvas.UpsertStroke(msg)
+				case *message.Erase:
+					strokes = slices.DeleteFunc(strokes, func(s stroke) bool {
+						return s.id == msg.StrokeID
+					})
+					canvas.EraseStroke(msg.StrokeID)
+				case *message.Textbox:
+					tb := textboxFromMessage(*msg, *textTh)
+					w, h := getTextboxSize(&gtx, &tb)
+					tb.size = image.Point{X: w, Y: h}
+					if idx := slices.IndexFunc(textboxes, func(t textbox) bool { return t.id == tb.id }); idx >= 0 {
+						textboxes[idx] = tb
+					} else {
+						textboxes = append(textboxes, tb)
+					}
+					canvas.UpsertTextbox(msg)
+				}
+			}
+			pendingMessages = pendingMessages[:0]
+
 			for toggleSessionBtn.Clicked(gtx) {
 				if inSession {
-					log.Println("Stopping Session")
+					go client.Close()
+					inSession = false
 				} else {
-					log.Println("Starting Session")
+					go func() {
+						code, err := client.CreateSession()
+						if err != nil {
+							log.Println("CreateSession error:", err)
+							return
+						}
+						sessionCode = code
+						inSession = true
+						window.Invalidate()
+					}()
 				}
-				inSession = !inSession
 			}
 
 			for {
@@ -166,8 +207,18 @@ func Loop(ctx context.Context, client *client.Client) error {
 					break
 				}
 				if sub, ok := ev.(widget.SubmitEvent); ok {
-					sessionCode = strings.TrimSpace(sub.Text)
-					log.Println("Submitted Session Code: ", sessionCode)
+					code := strings.TrimSpace(sub.Text)
+					clearCanvasState()
+					go func() {
+						localCode, err := client.JoinSession(code)
+						if err != nil {
+							log.Println("JoinSession error:", err)
+							return
+						}
+						sessionCode = localCode
+						inSession = true
+						window.Invalidate()
+					}()
 				}
 			}
 
@@ -212,12 +263,12 @@ func Loop(ctx context.Context, client *client.Client) error {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 						layout.Rigid(Sidebar(th, textTh, colorChoices, colorBtns, &customColorInput, &textInput, &textPreview, &decWidth, &incWidth, &decEraser, &incEraser, &decFont, &incFont, &insertTextBtn)),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							draw(gtx, textTh, &textPreview)
+							draw(gtx, textTh, &textPreview, client)
 							return layout.Dimensions{Size: gtx.Constraints.Max}
 						}),
 					)
 				}),
-				layout.Rigid(BottomControls(th, &toggleSessionBtn, &sessionCodeInput)),
+				layout.Rigid(BottomControls(th, &toggleSessionBtn, &sessionCodeInput, &sessionCodeSelectable)),
 			)
 			e.Frame(gtx.Ops)
 
@@ -229,7 +280,7 @@ func Loop(ctx context.Context, client *client.Client) error {
 	}
 }
 
-func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor) {
+func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor, cl *client.Client) {
 	ops := gtx.Ops
 	source := gtx.Source
 	size := gtx.Constraints.Max
@@ -277,7 +328,9 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					eraserPreviewActive = true
 					eraserPos = e.Position
 					log.Println("Started Erasing")
-					eraseAt()
+					for _, id := range eraseAt() {
+						go cl.BroadcastMessage(&message.Erase{StrokeID: id})
+					}
 				} else if lineMode { // straight line
 					// start line preview
 					previewActive = true
@@ -307,7 +360,9 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				}
 			case pointer.Drag:
 				if eraserMode {
-					eraseAt()
+					for _, id := range eraseAt() {
+						go cl.BroadcastMessage(&message.Erase{StrokeID: id})
+					}
 					eraserPos = e.Position
 				} else if lineMode && previewActive {
 					previewEnd = e.Position
@@ -324,22 +379,27 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					log.Println("Stopped Erasing")
 				} else if lineMode && previewActive {
 					// commit straight line as a two-point stroke
-					strokes = append(strokes, stroke{id: nextID, points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth})
+					committed := stroke{id: nodeID | int64(nextID), points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth}
+					strokes = append(strokes, committed)
 					nextID++
 					previewActive = false
-					// TODO: send Message
+					canvas.UpsertStroke(strokeToMessage(committed))
+					go cl.BroadcastMessage(strokeToMessage(committed))
 					log.Println("Committed straight line")
 				} else if drawing {
 					currStroke.points = append(currStroke.points, e.Position)
-					currStroke.id = nextID
+					currStroke.id = nodeID | int64(nextID)
 					nextID++
 					strokes = append(strokes, currStroke)
 					drawing = false
+					canvas.UpsertStroke(strokeToMessage(currStroke))
+					go cl.BroadcastMessage(strokeToMessage(currStroke))
 					log.Println("Stopped Drawing")
 				} else if textMode && activeTextbox != -1 {
-					// TODO: send Message
 					tb := &textboxes[activeTextbox]
 					tb.dragging = false
+					canvas.UpsertTextbox(textboxToMessage(*tb))
+					go cl.BroadcastMessage(textboxToMessage(*tb))
 					activeTextbox = -1
 					pointer.CursorDefault.Add(ops)
 					log.Println("Stopped dragging textbox")
@@ -421,12 +481,13 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 			newTB.Insert(previewText)
 			// place roughly in drawing area's center
 			pos := f32.Point{X: float32(size.X) / 2, Y: float32(size.Y) / 2}
-			tb := textbox{id: nextTextboxID, text: newTB, theme: *textTh, pos: pos}
+			tb := textbox{id: nodeID | int64(nextTextboxID), text: newTB, theme: *textTh, pos: pos}
 			nextTextboxID++
 			// give textbox a size (heuristics-calculated)
 			computedWidth, computedHeight := getTextboxSize(&gtx, &tb)
 			tb.size = image.Point{X: computedWidth, Y: computedHeight}
-			// TODO: send Message
+			canvas.UpsertTextbox(textboxToMessage(tb))
+			go cl.BroadcastMessage(textboxToMessage(tb))
 			textboxes = append(textboxes, tb)
 			log.Println("Inserted textbox with text: ", previewText, " and size: ", tb.size.X, ", ", tb.size.Y)
 		}
@@ -443,6 +504,25 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 
 	// must refresh event space constantly to allow for nice dragging
 	event.Op(ops, tag)
+}
+
+func upsertStroke(s stroke) {
+	if idx := slices.IndexFunc(strokes, func(existing stroke) bool { return existing.id == s.id }); idx >= 0 {
+		strokes[idx] = s
+	} else {
+		strokes = append(strokes, s)
+	}
+}
+
+func clearCanvasState() {
+	strokes = nil
+	currStroke = stroke{}
+	textboxes = nil
+	activeTextbox = -1
+	drawing = false
+	previewActive = false
+	eraserPreviewActive = false
+	canvas.Clear()
 }
 
 // getTextboxSize computes a natural width & height for a given textbox (heuristics-based)
@@ -522,9 +602,11 @@ func previewErase() (clip.Ellipse, color.NRGBA) {
 	return circle, circleColor
 }
 
-// eraseAt removes any stroke that has a point within eraserSize of pos
-func eraseAt() {
+// eraseAt removes any stroke within eraserSize of eraserPos and returns the
+// IDs of all strokes that were removed.
+func eraseAt() []int64 {
 	r2 := eraserSize * eraserSize
+	var erasedIDs []int64
 	updatedStrokes := strokes[:0] // stores any strokes that weren't erased
 	for _, s := range strokes {
 		// first check for freehand line in range of eraserPos
@@ -533,11 +615,13 @@ func eraseAt() {
 		if !hit && len(s.points) == 2 {
 			hit = isErasableLine(s, r2)
 		}
-		if !hit {
-			// if this stroke should not be erased, add it back to the updated list of strokes
+		if hit {
+			erasedIDs = append(erasedIDs, s.id)
+			canvas.EraseStroke(s.id)
+		} else {
 			updatedStrokes = append(updatedStrokes, s)
 		}
 	}
-	// TODO: send Message
 	strokes = updatedStrokes
+	return erasedIDs
 }

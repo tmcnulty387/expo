@@ -18,12 +18,12 @@ import (
 	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 )
 
-func strokeToMessage(s stroke) message.Stroke {
+func strokeToMessage(s stroke) *message.Stroke {
 	points := make([]message.Point, len(s.points))
 	for i, p := range s.points {
 		points[i] = message.Point{X: p.X, Y: p.Y}
 	}
-	return message.Stroke{
+	return &message.Stroke{
 		StrokeID: s.id,
 		Points:   points,
 		Color:    message.Color{R: s.col.R, G: s.col.G, B: s.col.B, A: s.col.A},
@@ -44,12 +44,13 @@ func strokeFromMessage(m message.Stroke) stroke {
 	}
 }
 
-func textboxToMessage(t textbox) message.Textbox {
-	return message.Textbox{
+func textboxToMessage(t textbox) *message.Textbox {
+	return &message.Textbox{
 		TextboxID: t.id,
 		X:         t.pos.X,
 		Y:         t.pos.Y,
 		FontSize:  float32(t.theme.TextSize),
+		Color:     message.Color{R: t.theme.Fg.R, G: t.theme.Fg.G, B: t.theme.Fg.B, A: t.theme.Fg.A},
 		Text:      t.text.Text(),
 	}
 }
@@ -60,6 +61,7 @@ func textboxFromMessage(m message.Textbox, th material.Theme) textbox {
 	editor.ReadOnly = true
 	editor.Insert(m.Text)
 	th.TextSize = unit.Sp(m.FontSize)
+	th.Fg = color.NRGBA{R: m.Color.R, G: m.Color.G, B: m.Color.B, A: m.Color.A}
 	return textbox{
 		id:    m.TextboxID,
 		text:  editor,

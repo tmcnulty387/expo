@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -253,7 +254,7 @@ func Sidebar(
 }
 
 // BottomControls returns the row of session/session code editor.
-func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor) func(gtx layout.Context) layout.Dimensions {
+func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sessionCodeInput *widget.Editor, sessionCodeSelectable *widget.Selectable) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		// Record the content ops (operators - buttons, etc.) so we can draw background/border behind it
 		rec := op.Record(gtx.Ops)
@@ -278,8 +279,21 @@ func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sess
 							if textValue == "" {
 								textValue = "(not set)"
 							}
-							lbl := material.Body1(th, "Session: "+textValue)
-							return layout.UniformInset(unit.Dp(9)).Layout(gtx, lbl.Layout)
+							return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+									layout.Rigid(material.Body1(th, "Session: ").Layout),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										sessionCodeSelectable.SetText(textValue)
+										textMacro := op.Record(gtx.Ops)
+										paint.ColorOp{Color: th.Fg}.Add(gtx.Ops)
+										textColor := textMacro.Stop()
+										selMacro := op.Record(gtx.Ops)
+										paint.ColorOp{Color: color.NRGBA{R: th.Palette.ContrastBg.R, G: th.Palette.ContrastBg.G, B: th.Palette.ContrastBg.B, A: 0x60}}.Add(gtx.Ops)
+										selColor := selMacro.Stop()
+										return sessionCodeSelectable.Layout(gtx, th.Shaper, font.Font{}, th.TextSize, textColor, selColor)
+									}),
+								)
+							})
 						}
 
 						borderColor := Gray

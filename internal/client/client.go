@@ -25,10 +25,11 @@ import (
 const ProtocolID = protocol.ID("/expo/1.0.0")
 
 type Client struct {
-	host     host.Host
-	peers    []peer.ID
-	mu       sync.Mutex
-	Messages chan message.Message // stream handler -> UI
+	host      host.Host
+	peers     []peer.ID
+	relayPeer peer.ID // session creator; used as circuit relay fallback
+	mu        sync.Mutex
+	Messages  chan message.Message // stream handler -> UI
 }
 
 func NewClient() *Client {
@@ -40,6 +41,8 @@ func NewClient() *Client {
 func (c *Client) CreateSession() (string, error) {
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
+		libp2p.EnableRelayService(),
+		libp2p.EnableRelay(),
 	)
 	if err != nil {
 		return "", err
@@ -82,6 +85,7 @@ func (c *Client) JoinSession(joinCode string) (string, error) {
 
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
+		libp2p.EnableRelay(),
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create node: %w", err)
@@ -104,9 +108,15 @@ func (c *Client) JoinSession(joinCode string) (string, error) {
 
 	c.host = node
 	c.peers = []peer.ID{hostInfo.ID}
+	c.relayPeer = hostInfo.ID
 	c.RegisterStreamHandler()
 
-	announce := &message.PeerAnnounce{Addr: pickWANAddr(node.Addrs()).String()}
+	wanAddr := pickWANAddr(node.Addrs())
+	if wanAddr == nil {
+		c.Close()
+		return "", fmt.Errorf("no usable address found for peer announcement")
+	}
+	announce := &message.PeerAnnounce{Addr: wanAddr.String()}
 
 	if err := c.SendMessage(hostInfo.ID, announce); err != nil {
 		c.Close()
