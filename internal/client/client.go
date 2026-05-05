@@ -60,7 +60,7 @@ func (c *Client) CreateSession() (string, error) {
 
 	c.host = node
 	c.peers = []peer.ID{}
-	// c.RegisterStreamHandler()
+	c.RegisterStreamHandler()
 
 	joinCode, err := c.GenerateJoinCode()
 	if err != nil {
@@ -115,7 +115,7 @@ func (c *Client) JoinSession(joinCode string) (string, error) {
 
 	c.host = node
 	c.peers = []peer.ID{hostInfo.ID}
-	// c.RegisterStreamHandler()
+	c.RegisterStreamHandler()
 
 	announce := &message.PeerAnnounce{Addr: pickWANAddr(node.Addrs()).String()}
 
