@@ -64,6 +64,7 @@ var (
 	drawColor                   = Black
 	strokeWidth         float32 = 4
 	strokes             []stroke
+	currStroke          stroke
 	textboxes           []textbox
 	activeTextbox       = -1
 	tbDragOffset        f32.Point
@@ -274,7 +275,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					drawing = true
 					log.Println("Started Drawing")
 					// start new stroke with current drawing colour and width
-					strokes = append(strokes, stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth})
+					currStroke = stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth}
 				} else if textMode { // text edit
 					// check if the press hits any textbox
 					// (topmost textbox will be hit first)
@@ -298,8 +299,8 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				} else if lineMode && previewActive {
 					previewEnd = e.Position
 				} else if drawing {
-					s := &strokes[len(strokes)-1]
-					s.points = append(s.points, e.Position)
+					// draw stroke
+					currStroke.points = append(currStroke.points, e.Position)
 				} else if textMode && activeTextbox != -1 { // dragging a textbox
 					pointer.CursorGrabbing.Add(ops)
 					tb := &textboxes[activeTextbox]
@@ -314,8 +315,8 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					previewActive = false
 					log.Println("Committed straight line")
 				} else if drawing {
-					s := &strokes[len(strokes)-1]
-					s.points = append(s.points, e.Position)
+					currStroke.points = append(currStroke.points, e.Position)
+					strokes = append(strokes, currStroke)
 					drawing = false
 					log.Println("Stopped Drawing")
 				} else if textMode && activeTextbox != -1 {
@@ -350,6 +351,22 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 			clip.Stroke{
 				Path:  path.End(),
 				Width: s.width,
+			}.Op())
+	}
+
+	// draw current stroke if drawing
+	if drawing {
+		var path clip.Path
+		path.Begin(ops)
+
+		path.MoveTo(currStroke.points[0])
+		for _, p := range currStroke.points[1:] {
+			path.LineTo(p)
+		}
+		paint.FillShape(ops, currStroke.col,
+			clip.Stroke{
+				Path:  path.End(),
+				Width: currStroke.width,
 			}.Op())
 	}
 
