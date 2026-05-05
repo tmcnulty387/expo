@@ -79,7 +79,6 @@ var (
 	eraserSize          float32 = 12
 	textMode                    = false
 	fontSize            float32 = 12
-	textColor                   = Black
 )
 
 func Loop(ctx context.Context) error {
@@ -210,7 +209,7 @@ func Loop(ctx context.Context) error {
 
 			// reset necessary variables every frame
 			insertingText = false
-			textTh.Fg = textColor
+			textTh.Fg = drawColor
 			textTh.TextSize = unit.Sp(fontSize)
 		}
 	}
