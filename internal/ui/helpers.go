@@ -160,9 +160,13 @@ func isErasableLine(s stroke, r2 float32) bool {
 
 // isErasableTextbox returns a bool value representing whether or not the given textbox, t, is currently erasable
 // note that only the TOPMOST textbox hit will be erased for any one erase operation
+// since operations occur so quickly (within ms) this will not be visually apparent to users
 // based on the current position of the eraser and its radius squared
 func isErasableTextbox(t textbox, r2 float32) bool {
 	padding := math.Sqrt(float64(r2)) // padding should be of size = radius
-	hitTextboxID := textboxHit(eraserPos.X, eraserPos.Y, float32(padding))
-	return hitTextboxID == int(t.id)
+	hitTextboxIdx := textboxHit(eraserPos.X, eraserPos.Y, float32(padding))
+	if hitTextboxIdx == -1 { // make sure we don't panic
+		return false
+	}
+	return textboxes[hitTextboxIdx].id == t.id
 }
