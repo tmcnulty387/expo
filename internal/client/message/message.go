@@ -363,7 +363,7 @@ type EraseTB struct {
 	TextboxID int64 // ID of textbox to erase
 }
 
-func (_ *EraseTB) Kind() int32 { return EraseKind }
+func (_ *EraseTB) Kind() int32 { return EraseTBKind }
 
 func (e *EraseTB) Equals(m Message) bool {
 	switch m := m.(type) {
