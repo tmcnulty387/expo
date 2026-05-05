@@ -152,25 +152,42 @@ func (c *Client) GenerateJoinCode() (string, error) {
 	return base32.StdEncoding.EncodeToString(chosen.Bytes()), nil
 }
 
+const (
+	maxSendRetries = 3
+	retryDelay     = 100 * time.Millisecond
+)
+
 func (c *Client) SendMessage(peerID peer.ID, msg message.Message) error {
 	if c.host == nil {
 		return fmt.Errorf("client not connected")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	var lastErr error
+	for attempt := range maxSendRetries {
+		if attempt > 0 {
+			time.Sleep(retryDelay)
+		}
 
-	stream, err := c.host.NewStream(ctx, peerID, ProtocolID)
-	if err != nil {
-		return fmt.Errorf("failed to open stream: %w", err)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		lastErr = func() error {
+			defer cancel()
+			stream, err := c.host.NewStream(ctx, peerID, ProtocolID)
+			if err != nil {
+				return fmt.Errorf("failed to open stream: %w", err)
+			}
+			defer stream.Close()
+			if err := message.Write(stream, msg); err != nil {
+				return fmt.Errorf("failed to write message: %w", err)
+			}
+			return nil
+		}()
+
+		if lastErr == nil {
+			return nil
+		}
+		log.Printf("send to %s attempt %d/%d failed: %v", peerID, attempt+1, maxSendRetries, lastErr)
 	}
-	defer stream.Close()
-
-	if err := message.Write(stream, msg); err != nil {
-		return fmt.Errorf("failed to write message: %w", err)
-	}
-
-	return nil
+	return lastErr
 }
 
 // BroadcastMessage sends a message to all connected peers concurrently.
