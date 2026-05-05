@@ -160,6 +160,7 @@ func Sidebar(
 							btn.TextSize = unit.Sp(8)
 							return btn.Layout(gtx)
 						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							lbl := material.Body1(th, fmt.Sprintf("%.0f", float32(strokeWidth)))
 							return layout.UniformInset(unit.Dp(6)).Layout(gtx, lbl.Layout)
