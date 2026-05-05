@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"iter"
@@ -58,14 +57,6 @@ func processCommand(line string, client *client.Client) Transition {
 
 // TODO: Separate out into internal/networking? Replace with CLI function?
 func cli(ctx context.Context, launchCommands []string) error {
-	// TODO: remove placeholder example connection attempt
-	conn, err := tls.Dial("tcp", "mail.google.com:443", nil)
-	if err != nil {
-		return err
-	}
-	log.Printf("connection: %s\n", conn.RemoteAddr())
-	defer conn.Close()
-
 	lines := make(chan string, len(launchCommands)+10)
 	go func() {
 		for _, command := range launchCommands {
@@ -81,6 +72,7 @@ func cli(ctx context.Context, launchCommands []string) error {
 		}
 	}()
 
+	// TODO: Remove, placeholder
 	client := client.Client{}
 
 	for {
