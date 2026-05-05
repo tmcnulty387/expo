@@ -340,36 +340,38 @@ func unmarshalAddrs(data []byte) ([]string, error) {
 }
 
 // PeerAnnounce is sent by a joining peer to the session creator.
-// Addrs holds the joining peer's p2p multiaddrs (each includes the peer ID).
+// Addr holds the joining peer's p2p multiaddr (includes the peer ID).
 type PeerAnnounce struct {
-	Addrs []string
+	Addr string
 }
 
 func (_ *PeerAnnounce) Kind() int32 { return PeerAnnounceKind }
 
 func (p *PeerAnnounce) Equals(m Message) bool {
 	other, ok := m.(*PeerAnnounce)
-	if !ok || len(p.Addrs) != len(other.Addrs) {
+	if !ok {
 		return false
 	}
-	for i := range p.Addrs {
-		if p.Addrs[i] != other.Addrs[i] {
-			return false
-		}
-	}
-	return true
+	return p.Addr == other.Addr
 }
 
 func (p *PeerAnnounce) MarshalBinary() ([]byte, error) {
-	return marshalAddrs(p.Addrs), nil
+	b := []byte(p.Addr)
+	data := make([]byte, 4+len(b))
+	ByteOrder.PutUint32(data, uint32(len(b)))
+	copy(data[4:], b)
+	return data, nil
 }
 
 func (p *PeerAnnounce) UnmarshalBinary(data []byte) error {
-	addrs, err := unmarshalAddrs(data)
-	if err != nil {
-		return err
+	if len(data) < 4 {
+		return errors.New("peer announce data too short")
 	}
-	p.Addrs = addrs
+	addrLen := int(ByteOrder.Uint32(data))
+	if len(data) != 4+addrLen {
+		return errors.New("peer announce data size mismatch")
+	}
+	p.Addr = string(data[4 : 4+addrLen])
 	return nil
 }
 
