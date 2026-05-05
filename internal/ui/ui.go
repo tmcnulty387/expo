@@ -314,7 +314,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				hit := false
 				if textMode {
 					// if hovering over a textbox, switch cursor to indicate draggable
-					idx := textboxHit(e.Position.X, e.Position.Y)
+					idx := textboxHit(e.Position.X, e.Position.Y, 0)
 					if idx != -1 {
 						pointer.CursorGrab.Add(ops)
 						hit = true
@@ -331,6 +331,9 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					for _, id := range eraseAt() {
 						go cl.BroadcastMessage(&message.Erase{StrokeID: id})
 					}
+					for _, id := range eraseTbAt() {
+						go cl.BroadcastMessage(&message.EraseTB{TextboxID: id})
+					}
 				} else if lineMode { // straight line
 					// start line preview
 					previewActive = true
@@ -345,7 +348,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				} else if textMode { // text edit
 					// check if the press hits any textbox
 					// (topmost textbox will be hit first)
-					idx := textboxHit(e.Position.X, e.Position.Y)
+					idx := textboxHit(e.Position.X, e.Position.Y, 0)
 					if idx != -1 {
 						// update textboxes so this one is now topmost
 						t := textboxes[idx]
@@ -362,6 +365,9 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				if eraserMode {
 					for _, id := range eraseAt() {
 						go cl.BroadcastMessage(&message.Erase{StrokeID: id})
+					}
+					for _, id := range eraseTbAt() {
+						go cl.BroadcastMessage(&message.EraseTB{TextboxID: id})
 					}
 					eraserPos = e.Position
 				} else if lineMode && previewActive {
@@ -576,7 +582,8 @@ func getTextboxSize(gtx *layout.Context, tb *textbox) (int, int) {
 }
 
 // textboxHit checks if the current cursor position is above a textbox, returns index of first hit
-func textboxHit(currX, currY float32) int {
+// padding is an optional parameter that will allow for a soft match
+func textboxHit(currX, currY float32, padding float32) int {
 	for i := len(textboxes) - 1; i >= 0; i-- {
 		tb := &textboxes[i]
 		w, h := float32(tb.size.X), float32(tb.size.Y)
@@ -584,9 +591,11 @@ func textboxHit(currX, currY float32) int {
 			// size not measured yet, skip this textbox
 			continue
 		}
-		if currX >= tb.pos.X && currX <= tb.pos.X+w &&
-			currY >= tb.pos.Y && currY <= tb.pos.Y+h {
-			return i
+		if padding >= 0 { // as long as padding is a valid value
+			if currX >= tb.pos.X-padding && currX <= tb.pos.X+w+padding &&
+				currY >= tb.pos.Y-padding && currY <= tb.pos.Y+h+padding {
+				return i
+			}
 		}
 	}
 	return -1
@@ -623,5 +632,26 @@ func eraseAt() []int64 {
 		}
 	}
 	strokes = updatedStrokes
+	return erasedIDs
+}
+
+// eraseTbAt removes any textbox within eraserSize of eraserPos and returns the
+// IDs of all textboxes that were removed.
+func eraseTbAt() []int64 {
+	r2 := eraserSize * eraserSize
+	var erasedIDs []int64
+	updatedTbs := textboxes[:0] // stores any textboxes that weren't erased
+	for _, t := range textboxes {
+		// check if textbox in range of eraserPos
+		hit := isErasableTextbox(t, r2)
+		if hit {
+			erasedIDs = append(erasedIDs, t.id)
+			canvas.EraseTextbox(t.id)
+			log.Println("Got a hit!!!!")
+		} else {
+			updatedTbs = append(updatedTbs, t)
+		}
+	}
+	textboxes = updatedTbs
 	return erasedIDs
 }

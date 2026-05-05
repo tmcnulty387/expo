@@ -310,7 +310,7 @@ func BottomControls(th *material.Theme, toggleSessionBtn *widget.Clickable, sess
 						gtx.Constraints.Min.X = gtx.Dp(180)
 						return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return material.Editor(th, sessionCodeInput, "Session Code").Layout(gtx)
+								return material.Editor(th, sessionCodeInput, "or input Session Code").Layout(gtx)
 							})
 						})
 					}),

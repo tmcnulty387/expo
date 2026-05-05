@@ -30,6 +30,7 @@ const (
 	StrokeKind
 	EraseKind
 	TextboxKind
+	EraseTBKind
 	PeerAnnounceKind     // Sent by a joining peer to the session creator.
 	PeerIntroductionKind // Sent by the session creator to introduce a peer to the rest of the session.
 	PeerListKind         // Sent by the session creator to a joining peer, containing the list of peers already in the session.
@@ -357,6 +358,36 @@ func unmarshalAddrs(data []byte) ([]string, error) {
 	return addrs, nil
 }
 
+// EraseTB represents a textbox erasure operation.
+type EraseTB struct {
+	TextboxID int64 // ID of textbox to erase
+}
+
+func (_ *EraseTB) Kind() int32 { return EraseKind }
+
+func (e *EraseTB) Equals(m Message) bool {
+	switch m := m.(type) {
+	case *EraseTB:
+		return e.TextboxID == m.TextboxID
+	default:
+		return false
+	}
+}
+
+func (e *EraseTB) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, 8)
+	ByteOrder.PutUint64(data, uint64(e.TextboxID))
+	return data, nil
+}
+
+func (e *EraseTB) UnmarshalBinary(data []byte) error {
+	if len(data) != 8 {
+		return errors.New("erase textbox data must be 8 bytes")
+	}
+	e.TextboxID = int64(ByteOrder.Uint64(data))
+	return nil
+}
+
 // PeerAnnounce is sent by a joining peer to the session creator.
 // Addr holds the joining peer's p2p multiaddr (includes the peer ID).
 type PeerAnnounce struct {
@@ -523,6 +554,8 @@ func Read(r io.Reader) (message Message, err error) {
 		message = &Erase{}
 	case TextboxKind:
 		message = &Textbox{}
+	case EraseTBKind:
+		message = &EraseTB{}
 	case PeerAnnounceKind:
 		message = &PeerAnnounce{}
 	case PeerIntroductionKind:

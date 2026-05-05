@@ -61,6 +61,18 @@ func UpsertTextbox(textbox *message.Textbox) {
 	textboxes = append(textboxes, copy)
 }
 
+func EraseTextbox(textboxID int64) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	for i := 0; i < len(textboxes); i++ {
+		if textboxes[i].TextboxID == textboxID {
+			textboxes = append(textboxes[:i], textboxes[i+1:]...)
+			i--
+		}
+	}
+}
+
 func Snapshot() []message.Message {
 	mu.Lock()
 	defer mu.Unlock()
