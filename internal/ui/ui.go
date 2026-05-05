@@ -239,7 +239,7 @@ func Loop(ctx context.Context, client *client.Client) error {
 					hex := strings.TrimSpace(sub.Text)
 					if c, err := parseHexColor(hex); err == nil {
 						drawColor = c
-						log.Println("Set custom draw color:", hex)
+						//log.Println("Set custom draw color:", hex)
 					} else {
 						log.Println("Invalid hex color:", hex, err)
 					}
@@ -315,7 +315,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				if eraserMode { // eraser preview
 					eraserPreviewActive = true
 					eraserPos = e.Position
-					log.Println("Eraser preview started")
+					//log.Println("Eraser preview started")
 				} else {
 					eraserPreviewActive = false
 				}
@@ -335,7 +335,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				if eraserMode { // eraser
 					eraserPreviewActive = true
 					eraserPos = e.Position
-					log.Println("Started Erasing")
+					//log.Println("Started Erasing")
 					for _, id := range eraseAt() {
 						go cl.BroadcastMessage(&message.Erase{StrokeID: id})
 					}
@@ -347,10 +347,10 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					previewActive = true
 					lineStart = e.Position
 					previewEnd = e.Position
-					log.Println("Line preview started")
+					//log.Println("Line preview started")
 				} else if drawMode { // freehand drawing
 					drawing = true
-					log.Println("Started Drawing")
+					//log.Println("Started Drawing")
 					// start new stroke with current drawing colour and width
 					currStroke = stroke{points: []f32.Point{e.Position}, col: drawColor, width: strokeWidth}
 				} else if textMode { // text edit
@@ -366,7 +366,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 						tbDragOffset = f32.Point{X: e.Position.X - t.pos.X, Y: e.Position.Y - t.pos.Y}
 						textboxes[activeTextbox].dragging = true
 						pointer.CursorGrabbing.Add(ops)
-						log.Println("Started dragging textbox")
+						//log.Println("Started dragging textbox")
 					}
 				}
 			case pointer.Drag:
@@ -390,7 +390,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 				}
 			case pointer.Release:
 				if eraserMode {
-					log.Println("Stopped Erasing")
+					//log.Println("Stopped Erasing")
 				} else if lineMode && previewActive {
 					// commit straight line as a two-point stroke
 					committed := stroke{id: nodeID | int64(nextID), points: []f32.Point{lineStart, e.Position}, col: drawColor, width: strokeWidth}
@@ -399,7 +399,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					previewActive = false
 					canvas.UpsertStroke(strokeToMessage(committed))
 					go cl.BroadcastMessage(strokeToMessage(committed))
-					log.Println("Committed straight line")
+					//log.Println("Committed straight line")
 				} else if drawing {
 					currStroke.points = append(currStroke.points, e.Position)
 					currStroke.id = nodeID | int64(nextID)
@@ -408,7 +408,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					drawing = false
 					canvas.UpsertStroke(strokeToMessage(currStroke))
 					go cl.BroadcastMessage(strokeToMessage(currStroke))
-					log.Println("Stopped Drawing")
+					//log.Println("Stopped Drawing")
 				} else if textMode && activeTextbox != -1 {
 					tb := &textboxes[activeTextbox]
 					tb.dragging = false
@@ -416,7 +416,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					go cl.BroadcastMessage(textboxToMessage(*tb))
 					activeTextbox = -1
 					pointer.CursorDefault.Add(ops)
-					log.Println("Stopped dragging textbox")
+					//log.Println("Stopped dragging textbox")
 				}
 			case pointer.Leave:
 				if eraserMode {
@@ -502,7 +502,7 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 			canvas.UpsertTextbox(textboxToMessage(tb))
 			go cl.BroadcastMessage(textboxToMessage(tb))
 			textboxes = append(textboxes, tb)
-			log.Println("Inserted textbox with text: ", previewText, " and size: ", tb.size.X, ", ", tb.size.Y)
+			//log.Println("Inserted textbox with text: ", previewText, " and size: ", tb.size.X, ", ", tb.size.Y)
 		}
 	}
 
@@ -654,7 +654,7 @@ func eraseTbAt() []int64 {
 		if hit {
 			erasedIDs = append(erasedIDs, t.id)
 			canvas.EraseTextbox(t.id)
-			log.Println("Got a hit!!!!")
+			//log.Println("Got a hit!!!!")
 		} else {
 			updatedTbs = append(updatedTbs, t)
 		}
