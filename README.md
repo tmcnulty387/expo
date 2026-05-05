@@ -11,6 +11,12 @@ A decentralized digital whiteboard application.
 - Tim McNulty
 - Rina Peshori
 
+## Run the program!
+
+```
+go run ./cmd/expo
+```
+
 ## Intended Components:
 - Gio UI
 - Standard Go TCP/IP stack (TLS)
