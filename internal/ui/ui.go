@@ -10,7 +10,6 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"math/rand/v2"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -68,12 +67,12 @@ var (
 	tag     = new(int)
 	// nodeID occupies the high 32 bits of every ID; the low 32 bits are a
 	// per-type counter. This makes IDs unique across peers without any
-	// coordination.
-	nodeID        int64 = int64(rand.Uint32()) << 32
-	nextID        int32 = 0
-	nextTextboxID int32 = 0
-	drawing             = false
-	inSession           = false
+	// coordination. derived from libp2p peer ID at RUNTIME
+	nodeID        int64  = 0
+	nextID        uint32 = 0
+	nextTextboxID uint32 = 0
+	drawing              = false
+	inSession            = false
 	sessionCode   string
 	drawColor             = Black
 	strokeWidth   float32 = 4
@@ -103,6 +102,10 @@ var (
 func Loop(ctx context.Context, client *client.Client) error {
 	window := new(app.Window)
 	window.Option(app.Title(appTitle))
+
+	// derive per-peer prefix for object IDs based on client's host ID
+	// IDs will be unique across peers
+	nodeID = client.NodePrefix()
 
 	var toggleSessionBtn widget.Clickable
 	var sessionCodeInput widget.Editor

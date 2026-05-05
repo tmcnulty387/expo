@@ -4,7 +4,10 @@ package client
 
 import (
 	"context"
+	crand "crypto/rand"
+	"crypto/sha256"
 	"encoding/base32"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -221,6 +224,25 @@ func (c *Client) BroadcastMessage(msg message.Message) error {
 	}
 	wg.Wait()
 	return errors.Join(errs...)
+}
+
+// NodePrefix derives a per-peer 32-bit prefix from the client's libp2p peer ID
+// The returned value occupies the high 32 bits of generated object IDs.
+func (c *Client) NodePrefix() int64 {
+	if c != nil && c.host != nil {
+		idStr := c.host.ID().String()
+		sum := sha256.Sum256([]byte(idStr))
+		prefix := binary.BigEndian.Uint32(sum[:4])
+		return int64(prefix) << 32
+	}
+	// fallback to crypto/rand if host not available
+	var b [4]byte
+	if _, err := crand.Read(b[:]); err == nil {
+		prefix := binary.BigEndian.Uint32(b[:])
+		return int64(prefix) << 32
+	}
+	// extra super fallback: time-based value (very unlikely to collide)
+	return int64(uint32(time.Now().UnixNano())) << 32
 }
 
 // pickWANAddr returns the first non-loopback address from addrs, falling back
