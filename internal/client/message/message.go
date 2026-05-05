@@ -29,6 +29,7 @@ const (
 	EchoKind int32 = iota
 	StrokeKind
 	EraseKind
+	TextboxKind
 	PeerAnnounceKind     // Sent by a joining peer to the session creator.
 	PeerIntroductionKind // Sent by the session creator to introduce a peer to the rest of the session.
 	PeerListKind         // Sent by the session creator to a joining peer, containing the list of peers already in the session.
@@ -221,6 +222,79 @@ func (e *Erase) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Textbox represents a text annotation placed on the canvas.
+type Textbox struct {
+	TextboxID int64   // Unique identifier
+	X         float32 // Canvas position, top-left
+	Y         float32
+	FontSize  float32
+	Text      string
+}
+
+func (_ *Textbox) Kind() int32 { return TextboxKind }
+
+func (t *Textbox) Equals(m Message) bool {
+	other, ok := m.(*Textbox)
+	if !ok {
+		return false
+	}
+	return t.TextboxID == other.TextboxID &&
+		t.X == other.X &&
+		t.Y == other.Y &&
+		t.FontSize == other.FontSize &&
+		t.Text == other.Text
+}
+
+func (t *Textbox) MarshalBinary() ([]byte, error) {
+	textBytes := []byte(t.Text)
+	// 8 (TextboxID) + 4 (X) + 4 (Y) + 4 (FontSize) + 4 (TextLen) + len(Text)
+	data := make([]byte, 24+len(textBytes))
+	offset := 0
+
+	ByteOrder.PutUint64(data[offset:], uint64(t.TextboxID))
+	offset += 8
+	ByteOrder.PutUint32(data[offset:], math.Float32bits(t.X))
+	offset += 4
+	ByteOrder.PutUint32(data[offset:], math.Float32bits(t.Y))
+	offset += 4
+	ByteOrder.PutUint32(data[offset:], math.Float32bits(t.FontSize))
+	offset += 4
+	ByteOrder.PutUint32(data[offset:], uint32(len(textBytes)))
+	offset += 4
+	copy(data[offset:], textBytes)
+
+	return data, nil
+}
+
+func (t *Textbox) UnmarshalBinary(data []byte) error {
+	if len(data) < 24 {
+		return errors.New("textbox data too short")
+	}
+	offset := 0
+
+	t.TextboxID = int64(ByteOrder.Uint64(data[offset:]))
+	offset += 8
+	t.X = math.Float32frombits(ByteOrder.Uint32(data[offset:]))
+	offset += 4
+	t.Y = math.Float32frombits(ByteOrder.Uint32(data[offset:]))
+	offset += 4
+	t.FontSize = math.Float32frombits(ByteOrder.Uint32(data[offset:]))
+	offset += 4
+	textLen := int(ByteOrder.Uint32(data[offset:]))
+	offset += 4
+
+	if len(data) != 24+textLen {
+		return errors.New("textbox data size mismatch")
+	}
+	text := string(data[offset : offset+textLen])
+	if !utf8.Valid([]byte(text)) {
+		return errors.New("textbox text is not valid UTF-8")
+	}
+	t.Text = text
+
+	return nil
+}
+
 // marshalAddrs encodes a string slice as: NumAddrs(uint32) + for each: Len(uint32) + bytes.
 func marshalAddrs(addrs []string) []byte {
 	size := 4
@@ -266,36 +340,38 @@ func unmarshalAddrs(data []byte) ([]string, error) {
 }
 
 // PeerAnnounce is sent by a joining peer to the session creator.
-// Addrs holds the joining peer's p2p multiaddrs (each includes the peer ID).
+// Addr holds the joining peer's p2p multiaddr (includes the peer ID).
 type PeerAnnounce struct {
-	Addrs []string
+	Addr string
 }
 
 func (_ *PeerAnnounce) Kind() int32 { return PeerAnnounceKind }
 
 func (p *PeerAnnounce) Equals(m Message) bool {
 	other, ok := m.(*PeerAnnounce)
-	if !ok || len(p.Addrs) != len(other.Addrs) {
+	if !ok {
 		return false
 	}
-	for i := range p.Addrs {
-		if p.Addrs[i] != other.Addrs[i] {
-			return false
-		}
-	}
-	return true
+	return p.Addr == other.Addr
 }
 
 func (p *PeerAnnounce) MarshalBinary() ([]byte, error) {
-	return marshalAddrs(p.Addrs), nil
+	b := []byte(p.Addr)
+	data := make([]byte, 4+len(b))
+	ByteOrder.PutUint32(data, uint32(len(b)))
+	copy(data[4:], b)
+	return data, nil
 }
 
 func (p *PeerAnnounce) UnmarshalBinary(data []byte) error {
-	addrs, err := unmarshalAddrs(data)
-	if err != nil {
-		return err
+	if len(data) < 4 {
+		return errors.New("peer announce data too short")
 	}
-	p.Addrs = addrs
+	addrLen := int(ByteOrder.Uint32(data))
+	if len(data) != 4+addrLen {
+		return errors.New("peer announce data size mismatch")
+	}
+	p.Addr = string(data[4 : 4+addrLen])
 	return nil
 }
 
@@ -427,6 +503,8 @@ func Read(r io.Reader) (message Message, err error) {
 		message = &Stroke{}
 	case EraseKind:
 		message = &Erase{}
+	case TextboxKind:
+		message = &Textbox{}
 	case PeerAnnounceKind:
 		message = &PeerAnnounce{}
 	case PeerIntroductionKind:

@@ -12,26 +12,38 @@ package client
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 
+	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 )
 
+const ProtocolID = protocol.ID("/expo/1.0.0")
+
 type Client struct {
-	host  host.Host
-	peers []peer.ID
+	host     host.Host
+	peers    []peer.ID
+	mu       sync.Mutex
+	Incoming chan message.Message // stream handler -> UI
+	Outgoing chan message.Message // UI -> broadcast goroutine
 }
 
 func NewClient() *Client {
-	return &Client{}
+	return &Client{
+		Incoming: make(chan message.Message, 32),
+		Outgoing: make(chan message.Message, 32),
+	}
 }
 
 // CreateSession starts a new session by creating a libp2p host and returns a
@@ -48,6 +60,7 @@ func (c *Client) CreateSession() (string, error) {
 
 	c.host = node
 	c.peers = []peer.ID{}
+	c.RegisterStreamHandler()
 
 	joinCode, err := c.GenerateJoinCode()
 	if err != nil {
@@ -61,27 +74,28 @@ func (c *Client) CreateSession() (string, error) {
 
 // JoinSession decodes a join code, connects to the session creator, and sends
 // a PeerAnnounce so the creator can introduce all existing peers.
-func (c *Client) JoinSession(joinCode string) error {
+// Returns this client's own join code so others can connect to it.
+func (c *Client) JoinSession(joinCode string) (string, error) {
 	addrBytes, err := base32.StdEncoding.DecodeString(joinCode)
 	if err != nil {
-		return fmt.Errorf("failed to decode join code: %w", err)
+		return "", fmt.Errorf("failed to decode join code: %w", err)
 	}
 
 	ma, err := multiaddr.NewMultiaddrBytes(addrBytes)
 	if err != nil {
-		return fmt.Errorf("failed to parse join code: %w", err)
+		return "", fmt.Errorf("failed to parse join code: %w", err)
 	}
 
 	hostInfo, err := peer.AddrInfoFromP2pAddr(ma)
 	if err != nil {
-		return fmt.Errorf("failed to extract peer info from join code: %w", err)
+		return "", fmt.Errorf("failed to extract peer info from join code: %w", err)
 	}
 
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create node: %w", err)
+		return "", fmt.Errorf("failed to create node: %w", err)
 	}
 
 	node.Peerstore().AddAddrs(hostInfo.ID, hostInfo.Addrs, peerstore.PermanentAddrTTL)
@@ -91,21 +105,33 @@ func (c *Client) JoinSession(joinCode string) error {
 
 	if err := node.Connect(ctx, *hostInfo); err != nil {
 		node.Close()
-		return fmt.Errorf("failed to connect to peer: %w", err)
+		return "", fmt.Errorf("failed to connect to peer: %w", err)
 	}
 
 	if node.Network().Connectedness(hostInfo.ID) != network.Connected {
 		node.Close()
-		return fmt.Errorf("not connected to peer after Connect call")
+		return "", fmt.Errorf("not connected to peer after Connect call")
 	}
 
 	c.host = node
 	c.peers = []peer.ID{hostInfo.ID}
+	c.RegisterStreamHandler()
 
-	// TODO: Announce ourselves so the creator introduces us to all existing peers.
+	announce := &message.PeerAnnounce{Addr: pickWANAddr(node.Addrs()).String()}
 
-	log.Printf("Joined session, connected to %s\n", hostInfo.ID)
-	return nil
+	if err := c.SendMessage(hostInfo.ID, announce); err != nil {
+		c.Close()
+		return "", fmt.Errorf("failed to send peer announce: %w", err)
+	}
+
+	localCode, err := c.GenerateJoinCode()
+	if err != nil {
+		c.Close()
+		return "", fmt.Errorf("failed to generate local join code: %w", err)
+	}
+
+	log.Printf("Joined session, connected to %s, local join code: %s\n", hostInfo.ID, localCode)
+	return localCode, nil
 }
 
 // Close shuts down the client's host.
@@ -131,6 +157,54 @@ func (c *Client) GenerateJoinCode() (string, error) {
 		return "", fmt.Errorf("no usable address found")
 	}
 	return base32.StdEncoding.EncodeToString(chosen.Bytes()), nil
+}
+
+func (c *Client) SendMessage(peerID peer.ID, msg message.Message) error {
+	if c.host == nil {
+		return fmt.Errorf("client not connected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stream, err := c.host.NewStream(ctx, peerID, ProtocolID)
+	if err != nil {
+		return fmt.Errorf("failed to open stream: %w", err)
+	}
+	defer stream.Close()
+
+	if err := message.Write(stream, msg); err != nil {
+		return fmt.Errorf("failed to write message: %w", err)
+	}
+
+	return nil
+}
+
+// BroadcastMessage sends a message to all connected peers concurrently.
+func (c *Client) BroadcastMessage(msg message.Message) error {
+	c.mu.Lock()
+	peers := make([]peer.ID, len(c.peers))
+	copy(peers, c.peers)
+	c.mu.Unlock()
+
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []error
+	)
+	for _, p := range peers {
+		wg.Add(1)
+		go func(id peer.ID) {
+			defer wg.Done()
+			if err := c.SendMessage(id, msg); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("peer %s: %w", id, err))
+				mu.Unlock()
+			}
+		}(p)
+	}
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 // pickWANAddr returns the first non-loopback address from addrs, falling back
