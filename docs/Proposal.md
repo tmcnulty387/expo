@@ -1,5 +1,5 @@
 # EXPO
-*__Team Members:__ Sebastian LaVine, Jane Majewski, Tim McNulty, Rina Peshori*
+*__Team Members:__ Sebastian LaVine, Tim McNulty, Rina Peshori*
 
 ## Project Goal:
 Create a native, distributed digital whiteboard application.
