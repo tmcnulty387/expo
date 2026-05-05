@@ -228,6 +228,7 @@ type Textbox struct {
 	X         float32 // Canvas position, top-left
 	Y         float32
 	FontSize  float32
+	Color     Color // RGBA color
 	Text      string
 }
 
@@ -242,13 +243,14 @@ func (t *Textbox) Equals(m Message) bool {
 		t.X == other.X &&
 		t.Y == other.Y &&
 		t.FontSize == other.FontSize &&
+		t.Color == other.Color &&
 		t.Text == other.Text
 }
 
 func (t *Textbox) MarshalBinary() ([]byte, error) {
 	textBytes := []byte(t.Text)
-	// 8 (TextboxID) + 4 (X) + 4 (Y) + 4 (FontSize) + 4 (TextLen) + len(Text)
-	data := make([]byte, 24+len(textBytes))
+	// 8 (TextboxID) + 4 (X) + 4 (Y) + 4 (FontSize) + 4 (Color) + 4 (TextLen) + len(Text)
+	data := make([]byte, 28+len(textBytes))
 	offset := 0
 
 	ByteOrder.PutUint64(data[offset:], uint64(t.TextboxID))
@@ -259,6 +261,14 @@ func (t *Textbox) MarshalBinary() ([]byte, error) {
 	offset += 4
 	ByteOrder.PutUint32(data[offset:], math.Float32bits(t.FontSize))
 	offset += 4
+	data[offset] = t.Color.R
+	offset++
+	data[offset] = t.Color.G
+	offset++
+	data[offset] = t.Color.B
+	offset++
+	data[offset] = t.Color.A
+	offset++
 	ByteOrder.PutUint32(data[offset:], uint32(len(textBytes)))
 	offset += 4
 	copy(data[offset:], textBytes)
@@ -267,7 +277,7 @@ func (t *Textbox) MarshalBinary() ([]byte, error) {
 }
 
 func (t *Textbox) UnmarshalBinary(data []byte) error {
-	if len(data) < 24 {
+	if len(data) < 28 {
 		return errors.New("textbox data too short")
 	}
 	offset := 0
@@ -280,10 +290,18 @@ func (t *Textbox) UnmarshalBinary(data []byte) error {
 	offset += 4
 	t.FontSize = math.Float32frombits(ByteOrder.Uint32(data[offset:]))
 	offset += 4
+	t.Color.R = data[offset]
+	offset++
+	t.Color.G = data[offset]
+	offset++
+	t.Color.B = data[offset]
+	offset++
+	t.Color.A = data[offset]
+	offset++
 	textLen := int(ByteOrder.Uint32(data[offset:]))
 	offset += 4
 
-	if len(data) != 24+textLen {
+	if len(data) != 28+textLen {
 		return errors.New("textbox data size mismatch")
 	}
 	text := string(data[offset : offset+textLen])

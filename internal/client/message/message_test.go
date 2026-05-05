@@ -61,9 +61,9 @@ func TestMessagesWriteRead(t *testing.T) {
 		&Erase{StrokeID: 12345},
 		&Erase{StrokeID: 0},
 		&Erase{StrokeID: -1},
-		&Textbox{TextboxID: 1, X: 100.0, Y: 200.5, FontSize: 14.0, Text: "Hello, World!"},
-		&Textbox{TextboxID: 2, X: 0.0, Y: 0.0, FontSize: 12.0, Text: ""},
-		&Textbox{TextboxID: 3, X: 50.0, Y: 75.0, FontSize: 24.0, Text: "multi\nline\ntext"},
+		&Textbox{TextboxID: 1, X: 100.0, Y: 200.5, FontSize: 14.0, Color: Color{R: 255, G: 128, B: 64, A: 255}, Text: "Hello, World!"},
+		&Textbox{TextboxID: 2, X: 0.0, Y: 0.0, FontSize: 12.0, Color: Color{R: 0, G: 0, B: 0, A: 255}, Text: ""},
+		&Textbox{TextboxID: 3, X: 50.0, Y: 75.0, FontSize: 24.0, Color: Color{R: 255, G: 0, B: 0, A: 255}, Text: "multi\nline\ntext"},
 	} {
 		testMessage(t, message)
 	}
