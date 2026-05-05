@@ -423,7 +423,6 @@ func draw(gtx layout.Context, textTh *material.Theme, textPreview *widget.Editor
 					eraserPreviewActive = false
 				}
 			}
-			log.Println("Event: ", e)
 		}
 	}
 
