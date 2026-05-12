@@ -15,7 +15,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/Go-20255/team-project-malloc4/internal/client/message"
+	"github.com/tmcnulty387/expo/internal/client/message"
 )
 
 func strokeToMessage(s stroke) *message.Stroke {

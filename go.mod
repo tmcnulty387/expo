@@ -1,4 +1,4 @@
-module github.com/Go-20255/team-project-malloc4
+module github.com/tmcnulty387/expo
 
 go 1.25.7
 

@@ -28,9 +28,9 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
-	"github.com/Go-20255/team-project-malloc4/internal/canvas"
-	"github.com/Go-20255/team-project-malloc4/internal/client"
-	"github.com/Go-20255/team-project-malloc4/internal/client/message"
+	"github.com/tmcnulty387/expo/internal/canvas"
+	"github.com/tmcnulty387/expo/internal/client"
+	"github.com/tmcnulty387/expo/internal/client/message"
 )
 
 // stroke represents a drawn line

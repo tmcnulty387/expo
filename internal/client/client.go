@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -23,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/tmcnulty387/expo/internal/client/message"
 )
 
 const ProtocolID = protocol.ID("/expo/1.0.0")

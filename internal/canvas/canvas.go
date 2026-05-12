@@ -4,7 +4,7 @@ package canvas
 import (
 	"sync"
 
-	"github.com/Go-20255/team-project-malloc4/internal/client/message"
+	"github.com/tmcnulty387/expo/internal/client/message"
 )
 
 var (

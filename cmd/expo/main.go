@@ -13,8 +13,8 @@ import (
 
 	"gioui.org/app"
 
-	"github.com/Go-20255/team-project-malloc4/internal/client"
-	"github.com/Go-20255/team-project-malloc4/internal/ui"
+	"github.com/tmcnulty387/expo/internal/client"
+	"github.com/tmcnulty387/expo/internal/ui"
 )
 
 type Options struct {

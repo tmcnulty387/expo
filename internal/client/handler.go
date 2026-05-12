@@ -5,12 +5,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/Go-20255/team-project-malloc4/internal/canvas"
-	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/tmcnulty387/expo/internal/canvas"
+	"github.com/tmcnulty387/expo/internal/client/message"
 )
 
 // hasPeer reports whether id is already in c.peers. Caller must hold c.mu.

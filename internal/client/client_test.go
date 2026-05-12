@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Go-20255/team-project-malloc4/internal/client/message"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/tmcnulty387/expo/internal/client/message"
 )
 
 // waitFor polls cond every 50ms until it returns true or timeout elapses.
